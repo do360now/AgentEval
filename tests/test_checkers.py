@@ -284,3 +284,45 @@ def test_c_transform_checks_output_file():
     assert _check_c_transform(env, None) is True
     env.write("sum.txt", "1")
     assert _check_c_transform(env, None) is False
+
+
+# --------------------------------------------------------------------------- #
+# Reasoning tasks
+# --------------------------------------------------------------------------- #
+from tasks.suite import (_check_r_math, _check_r_logic, _check_r_plan)
+
+
+def test_r_math_check():
+    env = _env()
+    env.write("answer.txt", "12")
+    assert _check_r_math(env, None) is True
+    env.write("answer.txt", "8")
+    assert _check_r_math(env, None) is False
+
+
+def test_r_logic_check():
+    env = _env()
+    env.write("answer.txt", "Cara")
+    assert _check_r_logic(env, None) is True
+    env.write("answer.txt", "Ana")
+    assert _check_r_logic(env, None) is False
+
+
+def test_r_plan_accepts_any_valid_order():
+    env = _env()
+    env.write("plan.txt", "B A C D")
+    assert _check_r_plan(env, None) is True
+
+
+def test_r_plan_accepts_comma_separated():
+    env = _env()
+    env.write("plan.txt", "B,A,C,D")
+    assert _check_r_plan(env, None) is True
+
+
+def test_r_plan_rejects_constraint_violation():
+    env = _env()
+    env.write("plan.txt", "A B C D")  # B must precede A
+    assert _check_r_plan(env, None) is False
+    env.write("plan.txt", "B A D C")  # D must be last
+    assert _check_r_plan(env, None) is False

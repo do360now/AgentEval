@@ -342,4 +342,66 @@ C_TRANSFORM = Task("c_code_transform", 2, "coding",
                    max_steps=10, max_tokens=1280)
 
 
+# --------------------------------------------------------------------------- #
+# Reasoning — pure deduction, no tool-use confound (read/write only)
+# --------------------------------------------------------------------------- #
+def _setup_r_math(env):
+    env.write("problem.txt",
+              "A store sells pens at 3 for $2. John buys 12 pens and pays with a "
+              "$20 bill. How many whole dollars of change does he get?")
+
+def _check_r_math(env, traj):
+    try:
+        return env.read("answer.txt").strip() == "12"   # 12 pens=4*$2=$8; 20-8=12
+    except Exception:
+        return False
+
+R_MATH = Task("r_multi_step_math", 2, "reasoning",
+              "Read problem.txt and solve it. Write ONLY the final integer answer "
+              "(number of dollars) to answer.txt.",
+              BASE_TOOLS, _setup_r_math, _check_r_math,
+              max_steps=6, max_tokens=1024)
+
+
+def _setup_r_logic(env):
+    env.write("problem.txt",
+              "Three friends -- Ana, Ben, Cara -- each own a different pet: a cat, a "
+              "dog, and a fish. Ana does not own the cat. Ben owns the fish. Who owns "
+              "the cat?")
+
+def _check_r_logic(env, traj):
+    try:
+        return env.read("answer.txt").strip() == "Cara"
+    except Exception:
+        return False
+
+R_LOGIC = Task("r_logic_grid", 3, "reasoning",
+               "Read problem.txt, solve the logic puzzle, and write ONLY the name of "
+               "the person who owns the cat to answer.txt.",
+               BASE_TOOLS, _setup_r_logic, _check_r_logic,
+               max_steps=8, max_tokens=1024, judge_path=True)
+
+
+def _setup_r_plan(env):
+    env.write("problem.txt",
+              "Order four tasks A, B, C, D, one per position. Constraints: A must "
+              "come before C; B must come before A; D must be last.")
+
+def _check_r_plan(env, traj):
+    try:
+        order = env.read("plan.txt").strip().replace(",", " ").split()
+        if sorted(order) != ["A", "B", "C", "D"]:
+            return False
+        pos = {x: i for i, x in enumerate(order)}
+        return pos["A"] < pos["C"] and pos["B"] < pos["A"] and pos["D"] == 3
+    except Exception:
+        return False
+
+R_PLAN = Task("r_constraint_plan", 3, "reasoning",
+              "Read problem.txt. Output a valid ordering of the four tasks (the four "
+              "letters separated by spaces) to plan.txt.",
+              BASE_TOOLS, _setup_r_plan, _check_r_plan,
+              max_steps=8, max_tokens=1024, judge_path=True)
+
+
 TASKS = [T1A, T1B, T2A, T2B, T2C, T3A, T3B, T4A, T4B]
