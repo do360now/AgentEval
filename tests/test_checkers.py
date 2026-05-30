@@ -243,3 +243,44 @@ def test_run_python_can_write_sandbox_files():
     env.write("w.py", "open('out.txt','w').write('42')")
     _run_python(env, "w.py")
     assert env.read("out.txt") == "42"
+
+
+# --------------------------------------------------------------------------- #
+# Coding tasks
+# --------------------------------------------------------------------------- #
+from tasks.suite import (_check_c_impl, _check_c_fix, _setup_c_fix,
+                         _check_c_transform, _setup_c_transform)
+
+
+def test_c_impl_passes_correct_solution():
+    env = _env()
+    env.write("solution.py", "def solve(nums):\n    return sum(n for n in nums if n % 2 == 0)\n")
+    assert _check_c_impl(env, None) is True
+
+
+def test_c_impl_fails_wrong_solution():
+    env = _env()
+    env.write("solution.py", "def solve(nums):\n    return 6\n")  # hardcoded
+    assert _check_c_impl(env, None) is False
+
+
+def test_c_fix_passes_when_factorial_correct():
+    env = _env()
+    _setup_c_fix(env)
+    env.write("buggy.py", "def fact(n):\n    r = 1\n    for i in range(1, n+1):\n        r *= i\n    return r\nprint(fact(5))\n")
+    assert _check_c_fix(env, None) is True
+
+
+def test_c_fix_fails_on_original_bug():
+    env = _env()
+    _setup_c_fix(env)
+    assert _check_c_fix(env, None) is False
+
+
+def test_c_transform_checks_output_file():
+    env = _env()
+    _setup_c_transform(env)
+    env.write("sum.txt", "5050")
+    assert _check_c_transform(env, None) is True
+    env.write("sum.txt", "1")
+    assert _check_c_transform(env, None) is False

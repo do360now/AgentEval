@@ -264,4 +264,82 @@ T4B = Task("t4b_skip_bad_rows", 4, "agentic",
            judge_path=True, notes="row 1 price is non-numeric; tests robustness.")
 
 
+# --------------------------------------------------------------------------- #
+# Coding — write/execute code, graded on real run output
+# --------------------------------------------------------------------------- #
+def _run_file(env, name):
+    """Run a sandbox file with the test interpreter; return CompletedProcess|None.
+
+    Uses cwd=env.root (no -I) so that ``import`` statements can find sibling
+    modules in the sandbox directory (e.g. the grader importing solution.py).
+    """
+    try:
+        return subprocess.run([sys.executable, str(env.path(name))],
+                              cwd=str(env.root), capture_output=True,
+                              text=True, timeout=10)
+    except Exception:
+        return None
+
+
+def _setup_c_impl(env):
+    pass  # spec is in the goal; the model authors solution.py
+
+def _check_c_impl(env, traj):
+    # Held-out cases (NOT shown in the goal) defeat hardcoding.
+    grader = (
+        "import solution\n"
+        "cases = [([1,2,3,4],6), ([10,11,12],22), ([],0), ([7],0), ([2,4,6],12)]\n"
+        "print('PASS' if all(solution.solve(i)==e for i,e in cases) else 'FAIL')\n"
+    )
+    try:
+        env.write("_grader.py", grader)
+    except Exception:
+        return False
+    proc = _run_file(env, "_grader.py")
+    return bool(proc) and proc.stdout.strip().endswith("PASS")
+
+C_IMPL = Task("c_impl_function", 3, "coding",
+              "Write a function solve(nums) in solution.py that returns the sum of "
+              "the EVEN integers in the list nums. Example: solve([1,2,3,4]) returns "
+              "6. Do not call the function yourself; just define it.",
+              CODE_TOOLS, _setup_c_impl, _check_c_impl,
+              max_steps=14, max_tokens=1536, judge_path=True)
+
+
+def _setup_c_fix(env):
+    # r initialised to 0 -> always prints 0; correct factorial(5) is 120.
+    env.write("buggy.py",
+              "def fact(n):\n    r = 0\n    for i in range(1, n+1):\n"
+              "        r *= i\n    return r\nprint(fact(5))\n")
+
+def _check_c_fix(env, traj):
+    proc = _run_file(env, "buggy.py")
+    return bool(proc) and proc.stdout.strip() == "120"
+
+C_FIX = Task("c_fix_bug", 3, "coding",
+             "buggy.py is supposed to print the factorial of 5 (which is 120) but it "
+             "prints the wrong number. Find and fix the bug in buggy.py so that "
+             "running it prints exactly 120.",
+             CODE_TOOLS, _setup_c_fix, _check_c_fix,
+             max_steps=14, max_tokens=1536, judge_path=True,
+             notes="r is initialised to 0 instead of 1.")
+
+
+def _setup_c_transform(env):
+    env.write("nums.txt", "\n".join(str(i) for i in range(1, 101)) + "\n")
+
+def _check_c_transform(env, traj):
+    try:
+        return env.read("sum.txt").strip() == "5050"
+    except Exception:
+        return False
+
+C_TRANSFORM = Task("c_code_transform", 2, "coding",
+                   "nums.txt contains 100 integers, one per line. Write and run a "
+                   "Python script that reads them and writes ONLY their total sum to "
+                   "sum.txt.",
+                   CODE_TOOLS, _setup_c_transform, _check_c_transform,
+                   max_steps=10, max_tokens=1280)
+
+
 TASKS = [T1A, T1B, T2A, T2B, T2C, T3A, T3B, T4A, T4B]
