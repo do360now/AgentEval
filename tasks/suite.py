@@ -1,4 +1,4 @@
-"""Starter agentic task suite — 12 tasks across 4 difficulty tiers.
+"""Agentic + coding + reasoning task suite — 16 tasks across 4 difficulty tiers.
 
 All tasks live in a filesystem sandbox and are safe to run anywhere. They are
 designed so a ~4B local model can plausibly clear tier 1 and some of tier 2,
@@ -10,6 +10,9 @@ Tiers:
   2  2-4 step linear pipeline
   3  5-10 step conditional / looping
   4  multi-step requiring error recovery (a tool deliberately fails)
+
+Categories (capability axis, orthogonal to tier): retrieval, data, agentic,
+coding (write+run code via run_python), reasoning (pure deduction).
 
 To extend: append Task objects to TASKS. Keep tier budgets pinned.
 """
@@ -264,6 +267,25 @@ T4B = Task("t4b_skip_bad_rows", 4, "agentic",
            judge_path=True, notes="row 1 price is non-numeric; tests robustness.")
 
 
+def _setup_t4c(env):
+    env.write("data/1.txt", "10")
+    env.write("data/2.txt", "oops")   # corrupt: not an integer -> must be skipped
+    env.write("data/3.txt", "32")
+
+def _check_t4c(env, traj):
+    try:
+        return env.read("total.txt").strip() == "42"   # 10 + 32, skip "oops"
+    except Exception:
+        return False
+
+T4C = Task("t4c_sum_skip_corrupt", 4, "agentic",
+           "Each file in data/ should contain a single integer. Read every file, sum "
+           "the integers, but SKIP any file whose contents are not a valid integer. "
+           "Write only the total to total.txt.",
+           BASE_TOOLS, _setup_t4c, _check_t4c, max_steps=14, max_tokens=1280,
+           judge_path=True, notes="data/2.txt is non-numeric; tests error recovery.")
+
+
 # --------------------------------------------------------------------------- #
 # Coding — write/execute code, graded on real run output
 # --------------------------------------------------------------------------- #
@@ -404,4 +426,5 @@ R_PLAN = Task("r_constraint_plan", 3, "reasoning",
               max_steps=8, max_tokens=1024, judge_path=True)
 
 
-TASKS = [T1A, T1B, T2A, T2B, T2C, T3A, T3B, T4A, T4B]
+TASKS = [T1A, T1B, T2A, T2B, T2C, T3A, T3B, T4A, T4B, T4C,
+         C_IMPL, C_FIX, C_TRANSFORM, R_MATH, R_LOGIC, R_PLAN]

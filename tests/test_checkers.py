@@ -326,3 +326,27 @@ def test_r_plan_rejects_constraint_violation():
     assert _check_r_plan(env, None) is False
     env.write("plan.txt", "B A D C")  # D must be last
     assert _check_r_plan(env, None) is False
+
+
+# --------------------------------------------------------------------------- #
+# Agentic t4c + suite integrity
+# --------------------------------------------------------------------------- #
+from tasks.suite import _setup_t4c, _check_t4c, TASKS
+
+
+def test_t4c_skips_corrupt_file():
+    env = _env()
+    _setup_t4c(env)
+    env.write("total.txt", "42")
+    assert _check_t4c(env, None) is True
+    env.write("total.txt", "84")
+    assert _check_t4c(env, None) is False
+
+
+def test_suite_has_unique_task_ids_and_new_categories():
+    ids = [t.task_id for t in TASKS]
+    assert len(ids) == len(set(ids)), "duplicate task_id"
+    cats = {t.category for t in TASKS}
+    assert {"coding", "reasoning", "agentic"} <= cats
+    # every task has positive budgets
+    assert all(t.max_steps > 0 and t.max_tokens > 0 for t in TASKS)
