@@ -85,3 +85,29 @@ def test_write_markdown_report(tmp_path):
     assert "Pass rates by tier" in text
     assert "Per-task detail" in text
     assert "Total runs: 2" in text
+
+
+# --------------------------------------------------------------------------- #
+# by_category aggregation
+# --------------------------------------------------------------------------- #
+from harness.core import RunResult
+from harness.report import aggregate
+
+
+def _row(model, task_id, category, tier, success):
+    return RunResult(task_id=task_id, tier=tier, category=category, model=model,
+                     run_index=0, success=success, n_steps=3, invalid_rate=0.0,
+                     tokens_used=100, halt_reason="done", wall_seconds=0.1)
+
+
+def test_aggregate_has_by_category():
+    rows = [
+        _row("m", "c_impl_function", "coding", 3, True),
+        _row("m", "c_fix_bug", "coding", 3, False),
+        _row("m", "r_logic_grid", "reasoning", 3, True),
+    ]
+    agg = aggregate(rows)
+    assert "by_category" in agg
+    assert agg["by_category"]["m|coding"]["pass_at_1"] == 0.5
+    assert agg["by_category"]["m|coding"]["pass_at_k"] == 1
+    assert agg["by_category"]["m|reasoning"]["pass_at_1"] == 1.0

@@ -26,11 +26,13 @@ def _mean(xs):
 
 
 def aggregate(rows: list[RunResult]) -> dict[str, Any]:
-    by_task = defaultdict(list)   # (model, task_id) -> [RunResult]
-    by_tier = defaultdict(list)   # (model, tier)    -> [RunResult]
+    by_task = defaultdict(list)
+    by_tier = defaultdict(list)
+    by_category = defaultdict(list)
     for r in rows:
         by_task[(r.model, r.task_id)].append(r)
         by_tier[(r.model, r.tier)].append(r)
+        by_category[(r.model, r.category)].append(r)
 
     def summarize(group):
         succ = [1 if r.success else 0 for r in group]
@@ -47,6 +49,8 @@ def aggregate(rows: list[RunResult]) -> dict[str, Any]:
     return {
         "by_task": {f"{m}|{t}": summarize(g) for (m, t), g in by_task.items()},
         "by_tier": {f"{m}|tier{t}": summarize(g) for (m, t), g in by_tier.items()},
+        "by_category": {f"{m}|{c}": summarize(g)
+                        for (m, c), g in by_category.items()},
     }
 
 
@@ -71,6 +75,16 @@ def write_markdown_report(rows: list[RunResult], agg: dict, path: str) -> None:
         judge = s['mean_judge'] if s['mean_judge'] is not None else "-"
         lines.append(f"| {model} | {tier} | {s['pass_at_1']} | {s['pass_at_k']} "
                      f"| {s['mean_steps']} | {inv} | {s['mean_tokens']} | {judge} |")
+    lines.append("\n## Pass rates by capability\n")
+    lines.append("| Model | Category | pass@1 | pass@k | mean steps | invalid% | judge |")
+    lines.append("|---|---|---|---|---|---|---|")
+    for key in sorted(agg["by_category"]):
+        s = agg["by_category"][key]
+        model, cat = key.split("|")
+        inv = f"{s['mean_invalid_rate']*100:.0f}%" if s['mean_invalid_rate'] is not None else "-"
+        judge = s['mean_judge'] if s['mean_judge'] is not None else "-"
+        lines.append(f"| {model} | {cat} | {s['pass_at_1']} | {s['pass_at_k']} "
+                     f"| {s['mean_steps']} | {inv} | {judge} |")
     lines.append("\n## Per-task detail\n")
     lines.append("| Model | Task | pass@1 | pass@k | mean steps |")
     lines.append("|---|---|---|---|---|")
