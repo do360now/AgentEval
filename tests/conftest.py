@@ -71,3 +71,24 @@ class CrashAdapter:
 
     def act(self, messages, tool_specs, max_tokens):
         raise RuntimeError("boom")
+
+
+@pytest.fixture
+def scripted_adapter_factory():
+    """Return a factory that builds a ProgrammedAdapter from a list of steps.
+
+    Each step is a (tool_name, args_dict) tuple or ("__final__", {}) to signal
+    completion. This mirrors ProgrammedAdapter but with a simpler step spec.
+    """
+    from harness.adapters import ModelAction
+
+    def factory(steps):
+        program = []
+        for tool, args in steps:
+            if tool == "__final__":
+                program.append(ModelAction(kind="final"))
+            else:
+                program.append(ModelAction(kind="tool_call", tool=tool, args=args))
+        return ProgrammedAdapter(program)
+
+    return factory

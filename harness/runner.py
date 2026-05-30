@@ -22,7 +22,7 @@ from harness.core import (Environment, RunResult, Step, Task, Trajectory,
 # One run of the agent loop
 # --------------------------------------------------------------------------- #
 def run_task(task: Task, adapter, model_name: str, run_index: int,
-             judge_adapter=None) -> RunResult:
+             judge_adapter=None, trajectory_sink=None) -> RunResult:
     env = make_environment(task)
     traj = Trajectory()
     t0 = time.time()
@@ -84,6 +84,9 @@ def run_task(task: Task, adapter, model_name: str, run_index: int,
             judge_score, judge_rationale = judge_path_quality(
                 task, traj, judge_adapter)
 
+        if trajectory_sink is not None:
+            trajectory_sink(model_name, task.task_id, run_index, traj)
+
     finally:
         snap_seconds = time.time() - t0
         env.destroy()
@@ -139,8 +142,8 @@ def judge_path_quality(task: Task, traj: Trajectory,
 # --------------------------------------------------------------------------- #
 def run_study(tasks: list[Task], models: dict[str, Any], k: int = 5,
               judge_adapter=None,
-              progress: Optional[Callable[[str], None]] = None
-              ) -> list[RunResult]:
+              progress: Optional[Callable[[str], None]] = None,
+              trajectory_sink=None) -> list[RunResult]:
     rows: list[RunResult] = []
     for model_name, adapter in models.items():
         for task in tasks:
@@ -149,7 +152,8 @@ def run_study(tasks: list[Task], models: dict[str, Any], k: int = 5,
                     progress(f"{model_name} | {task.task_id} | run {i+1}/{k}")
                 try:
                     rows.append(run_task(task, adapter, model_name, i,
-                                         judge_adapter))
+                                         judge_adapter,
+                                         trajectory_sink=trajectory_sink))
                 except Exception as e:
                     # A crashed run is data too: record it as a failure.
                     rows.append(RunResult(

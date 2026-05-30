@@ -220,3 +220,26 @@ def test_run_study_progress_callback():
               progress=seen.append)
     assert len(seen) == 2
     assert "run 1/2" in seen[0]
+
+
+# --------------------------------------------------------------------------- #
+# trajectory_sink
+# --------------------------------------------------------------------------- #
+def test_run_task_invokes_trajectory_sink(scripted_adapter_factory):
+    """A trajectory_sink receives (model, task_id, run_index, trajectory)."""
+    from tasks.suite import T1B
+    captured = {}
+
+    def sink(model, task_id, run_index, traj):
+        captured["model"] = model
+        captured["task_id"] = task_id
+        captured["text"] = traj.as_text()
+
+    adapter = scripted_adapter_factory([
+        ("write_file", {"path": "answer.txt", "content": "1"}),
+        ("__final__", {}),
+    ])
+    run_task(T1B, adapter, "fake:model", 0, trajectory_sink=sink)
+    assert captured["model"] == "fake:model"
+    assert captured["task_id"] == "t1b_count_logs"
+    assert "halt:" in captured["text"]

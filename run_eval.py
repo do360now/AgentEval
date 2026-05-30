@@ -80,6 +80,8 @@ def main():
     ap.add_argument("--k", type=int, default=5, help="repeats per task (default 5)")
     ap.add_argument("--tiers", nargs="*", type=int, help="filter to these tiers")
     ap.add_argument("--out", default=".", help="output directory")
+    ap.add_argument("--dump-trajectories", action="store_true",
+                    help="write each run's trajectory text to <out>/trajectories/")
     args = ap.parse_args()
 
     tasks = TASKS
@@ -88,10 +90,22 @@ def main():
     models = build_models(args)
     judge = build_judge(args.judge)
 
+    sink = None
+    if args.dump_trajectories:
+        traj_dir = os.path.join(args.out, "trajectories")
+        os.makedirs(traj_dir, exist_ok=True)
+
+        def sink(model, task_id, run_index, traj):
+            safe = model.replace(":", "-").replace("/", "-")
+            fp = os.path.join(traj_dir, f"{safe}__{task_id}__k{run_index}.txt")
+            with open(fp, "w") as fh:
+                fh.write(traj.as_text())
+
     print(f"Running {len(tasks)} tasks x {len(models)} models x k={args.k} "
           f"= {len(tasks)*len(models)*args.k} runs")
     rows = run_study(tasks, models, k=args.k, judge_adapter=judge,
-                     progress=lambda s: print("  ", s))
+                     progress=lambda s: print("  ", s),
+                     trajectory_sink=sink)
 
     csv_path = os.path.join(args.out, "results.csv")
     md_path = os.path.join(args.out, "report.md")
