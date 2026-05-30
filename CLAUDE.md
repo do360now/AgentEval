@@ -68,7 +68,7 @@ harness/core.py      Task / Tool / Environment / Trajectory / RunResult — the 
 harness/adapters.py  Ollama / Anthropic / OpenAI / Claude-CLI, all behind one .act()
 harness/runner.py    the agent loop (run_task), study orchestration (run_study), LLM judge
 harness/report.py    aggregation -> pass@1, pass@k, per-tier/per-task, CSV + markdown
-tasks/suite.py       the task suite (currently 9 tasks across 4 tiers) + shared tools
+tasks/suite.py       the task suite (16 tasks across 4 tiers; categories: retrieval/data/agentic/coding/reasoning) + shared tools
 run_eval.py          CLI: builds adapters, filters tiers, runs the matrix, writes output
 ```
 
@@ -81,7 +81,7 @@ run_eval.py          CLI: builds adapters, filters tiers, runs the matrix, write
 - **Add a task:** append a `Task` to `TASKS` in `tasks/suite.py` with a `setup(env)` that
   populates the sandbox and a `check(env, traj) -> bool` deterministic grader. Pin
   `max_steps`/`max_tokens` per tier; set `judge_path=True` only if you also want path
-  quality scored.
+  quality scored. Coding tasks use `CODE_TOOLS` (adds `run_python`) and grade by executing the model's code against held-out inputs; reasoning tasks use `BASE_TOOLS` and grade an exact answer file.
 
 ### Scoring model (the core invariant)
 
@@ -129,3 +129,5 @@ run_eval.py          CLI: builds adapters, filters tiers, runs the matrix, write
   `anthropic:claude-opus-4-7`); `report.py` splits on `|` when building table keys.
 - Not a git repository; the two README files (`README.md`, `agenteval_README.md`) are
   byte-identical duplicates.
+- **`run_python` executes untrusted generated code on the host** — sandboxed only by temp-dir cwd + `python3 -I` + a 10s timeout, NOT containerized. Fine for trusted models; never point it at adversarial input.
+- **`--dump-trajectories`** writes each run's path text to `<out>/trajectories/<model>__<task>__k<i>.txt` for post-hoc diagnosis (trajectories are otherwise not persisted).
