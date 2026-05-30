@@ -240,3 +240,41 @@ def test_claude_cli_non_json_stdout_falls_back(monkeypatch):
     a = ClaudeCliAdapter("claude-opus-4-7").act(
         [{"role": "user", "content": "x"}], SPECS, 256)
     assert a.tool == "read_file"
+
+
+# --------------------------------------------------------------------------- #
+# Balanced-brace Args parser
+# --------------------------------------------------------------------------- #
+def test_parse_react_multiline_braces_in_args():
+    text = (
+        "Thought: write a script\n"
+        "Action: write_file\n"
+        'Args: {"path": "solution.py", "content": "def f():\\n    return {1: 2}\\n"}\n'
+    )
+    action = parse_react(text)
+    assert action.kind == "tool_call"
+    assert action.tool == "write_file"
+    assert action.args["path"] == "solution.py"
+    assert "return {1: 2}" in action.args["content"]
+
+
+def test_parse_react_args_object_spanning_newlines():
+    text = (
+        "Action: write_file\n"
+        'Args: {\n  "path": "a.txt",\n  "content": "hello"\n}\n'
+    )
+    action = parse_react(text)
+    assert action.args == {"path": "a.txt", "content": "hello"}
+
+
+def test_parse_react_brace_inside_string_not_counted():
+    text = 'Action: write_file\nArgs: {"content": "a } b { c"}\n'
+    action = parse_react(text)
+    assert action.args == {"content": "a } b { c"}
+
+
+def test_parse_react_malformed_args_yields_empty_dict():
+    text = "Action: list_dir\nArgs: {not json}\n"
+    action = parse_react(text)
+    assert action.tool == "list_dir"
+    assert action.args == {}

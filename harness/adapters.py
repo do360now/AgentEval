@@ -71,8 +71,43 @@ def system_preamble(tool_specs: list[dict[str, Any]], react: bool) -> str:
 # ReAct text parsing (fallback for models without structured tool-calls)
 # --------------------------------------------------------------------------- #
 _ACTION_RE = re.compile(r"Action:\s*(\w+)", re.I)
-_ARGS_RE = re.compile(r"Args:\s*(\{.*?\})", re.I | re.S)
 _FINAL_RE = re.compile(r"Final:\s*done", re.I)
+
+
+def _extract_args_object(text: str) -> Optional[str]:
+    """Return the first balanced ``{...}`` substring after an ``Args:`` label.
+
+    Brace-counts, ignoring braces that appear inside JSON string literals, so a
+    multi-line code argument containing ``{`` / ``}`` survives. Returns None if no
+    object is found.
+    """
+    m = re.search(r"Args:\s*", text, re.I)
+    if not m:
+        return None
+    start = text.find("{", m.end())
+    if start == -1:
+        return None
+    depth = 0
+    in_str = False
+    esc = False
+    for j in range(start, len(text)):
+        ch = text[j]
+        if in_str:
+            if esc:
+                esc = False
+            elif ch == "\\":
+                esc = True
+            elif ch == '"':
+                in_str = False
+        elif ch == '"':
+            in_str = True
+        elif ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                return text[start:j + 1]
+    return None
 
 
 def parse_react(text: str) -> ModelAction:
@@ -84,10 +119,10 @@ def parse_react(text: str) -> ModelAction:
         return ModelAction(kind="tool_call", tool=None, args=None, raw=text)
     tool = m_action.group(1)
     args: dict[str, Any] = {}
-    m_args = _ARGS_RE.search(text)
-    if m_args:
+    raw_args = _extract_args_object(text)
+    if raw_args:
         try:
-            args = json.loads(m_args.group(1))
+            args = json.loads(raw_args)
         except json.JSONDecodeError:
             args = {}
     return ModelAction(kind="tool_call", tool=tool, args=args, raw=text)
