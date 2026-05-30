@@ -16,6 +16,8 @@ To extend: append Task objects to TASKS. Keep tier budgets pinned.
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
 
 from harness.core import Environment, Task, Tool, Trajectory
 
@@ -53,6 +55,40 @@ STAT = Tool("stat_file", "Check if a file exists and its size.",
              "required": ["path"]}, _stat)
 
 BASE_TOOLS = [READ, WRITE, LIST, STAT]
+
+
+def _run_python(env: Environment, path: str):
+    """Execute a Python file inside the sandbox and return its output.
+
+    SECURITY: runs untrusted, model-generated Python on the host. It is sandboxed
+    only by (a) running inside the throwaway temp dir (cwd=env.root), (b) Python's
+    isolated mode (-I), and (c) a 10s hard timeout. It is NOT containerized and the
+    process can reach the network/host. Acceptable for trusted models on a dev box;
+    do not point this at adversarial input. A timeout or crash is a real, recoverable
+    observation (valid=True) -- this is how coding error-recovery is exercised.
+    """
+    target = env.path(path)
+    if not target.exists():
+        return {"error": f"no such file: {path}"}
+    try:
+        proc = subprocess.run(
+            [sys.executable, "-I", str(target)],
+            cwd=str(env.root), capture_output=True, text=True, timeout=10,
+        )
+    except subprocess.TimeoutExpired:
+        return {"error": "timeout after 10s", "returncode": None}
+    return {"stdout": proc.stdout[-2000:],
+            "stderr": proc.stderr[-2000:],
+            "returncode": proc.returncode}
+
+
+RUN_PYTHON = Tool(
+    "run_python",
+    "Execute a Python file in the sandbox; returns its stdout, stderr, exit code.",
+    {"type": "object", "properties": {"path": {"type": "string"}},
+     "required": ["path"]}, _run_python)
+
+CODE_TOOLS = BASE_TOOLS + [RUN_PYTHON]
 
 
 # --------------------------------------------------------------------------- #

@@ -201,3 +201,45 @@ def test_every_task_has_pinned_budget():
 
 def test_tiers_are_in_range():
     assert all(1 <= t.tier <= 4 for t in suite.TASKS)
+
+
+# --------------------------------------------------------------------------- #
+# run_python tool
+# --------------------------------------------------------------------------- #
+import tempfile
+from pathlib import Path
+from harness.core import Environment
+from tasks.suite import _run_python
+
+
+def _env():
+    return Environment(Path(tempfile.mkdtemp(prefix="agenteval_test_")))
+
+
+def test_run_python_captures_stdout():
+    env = _env()
+    env.write("hi.py", "print('hello')")
+    obs = _run_python(env, "hi.py")
+    assert obs["returncode"] == 0
+    assert obs["stdout"].strip() == "hello"
+
+
+def test_run_python_reports_nonzero_exit_and_stderr():
+    env = _env()
+    env.write("boom.py", "raise ValueError('nope')")
+    obs = _run_python(env, "boom.py")
+    assert obs["returncode"] != 0
+    assert "ValueError" in obs["stderr"]
+
+
+def test_run_python_missing_file():
+    env = _env()
+    obs = _run_python(env, "nope.py")
+    assert "error" in obs
+
+
+def test_run_python_can_write_sandbox_files():
+    env = _env()
+    env.write("w.py", "open('out.txt','w').write('42')")
+    _run_python(env, "w.py")
+    assert env.read("out.txt") == "42"
