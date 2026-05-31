@@ -113,6 +113,7 @@ def main():
                      progress=lambda s: print("  ", s),
                      trajectory_sink=sink, base_seed=args.seed)
 
+    os.makedirs(args.out, exist_ok=True)
     csv_path = os.path.join(args.out, "results.csv")
     md_path = os.path.join(args.out, "report.md")
     write_csv(rows, csv_path)
