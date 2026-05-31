@@ -210,7 +210,8 @@ def test_every_task_has_pinned_budget():
 
 
 def test_tiers_are_in_range():
-    assert all(1 <= t.tier <= 4 for t in suite.TASKS)
+    # 1-4 = graduated difficulty; 5 = hard discriminators (separate frontier models).
+    assert all(1 <= t.tier <= 5 for t in suite.TASKS)
 
 
 # --------------------------------------------------------------------------- #
@@ -396,3 +397,65 @@ def test_suite_has_unique_task_ids_and_new_categories():
     assert {"coding", "reasoning", "agentic"} <= cats
     # every task has positive budgets
     assert all(t.max_steps > 0 and t.max_tokens > 0 for t in TASKS)
+
+
+# --- Tier 5 hard discriminators ------------------------------------------- #
+import random as _random
+import csv as _csvmod
+import io as _io
+import json as _jsonmod
+from harness.core import make_environment as _make_env
+from tasks.suite import (H_MERGE, _gen_h_merge, _merge_ref,
+                         H_JOIN, _gen_h_join, TASKS as _TASKS)
+
+
+def test_h_merge_reference_cases_are_sorted_nonoverlapping():
+    for s in range(200):
+        p = _gen_h_merge(_random.Random(s))
+        for inp, exp in p["cases"]:
+            assert exp == _merge_ref(inp)
+            for (a1, b1), (a2, b2) in zip(exp, exp[1:]):
+                assert b1 < a2          # strictly separated => merged correctly
+
+
+def test_h_merge_check_passes_reference_fails_identity():
+    env = _make_env(H_MERGE, seed=3)
+    env.write("solution.py",
+              "def merge(intervals):\n"
+              "    if not intervals: return []\n"
+              "    s=sorted([list(x) for x in intervals])\n"
+              "    out=[list(s[0])]\n"
+              "    for a,b in s[1:]:\n"
+              "        if a<=out[-1][1]: out[-1][1]=max(out[-1][1],b)\n"
+              "        else: out.append([a,b])\n"
+              "    return out\n")
+    assert H_MERGE.check(env, None) is True
+    env.write("solution.py", "def merge(iv):\n    return iv\n")
+    assert H_MERGE.check(env, None) is False
+    env.destroy()
+
+
+def test_h_join_answer_matches_independent_recompute():
+    for s in range(200):
+        p = _gen_h_join(_random.Random(s))
+        cust = {r["customer_id"]: r["region"]
+                for r in _csvmod.DictReader(_io.StringIO(p["customers_csv"]))}
+        tot: dict = {}
+        for r in _csvmod.DictReader(_io.StringIO(p["orders_csv"])):
+            reg = cust[r["customer_id"]]
+            tot[reg] = tot.get(reg, 0) + int(r["amount"])
+        assert tot == p["answer"]
+
+
+def test_h_join_check_uses_params():
+    env = _make_env(H_JOIN, seed=7)
+    env.write("region_totals.json", _jsonmod.dumps(env.scratch["params"]["answer"]))
+    assert H_JOIN.check(env, None) is True
+    env.write("region_totals.json", _jsonmod.dumps({"Nowhere": 1}))
+    assert H_JOIN.check(env, None) is False
+    env.destroy()
+
+
+def test_hard_tasks_registered_as_tier5():
+    hard = {t.task_id for t in _TASKS if t.tier == 5}
+    assert hard == {"h_merge_intervals", "h_revenue_by_region"}

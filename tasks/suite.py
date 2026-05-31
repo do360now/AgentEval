@@ -1,4 +1,4 @@
-"""Agentic + coding + reasoning task suite — 16 tasks across 4 difficulty tiers.
+"""Agentic + coding + reasoning task suite — 18 tasks across 5 difficulty tiers.
 
 All tasks live in a filesystem sandbox and are safe to run anywhere. They are
 designed so a ~4B local model can plausibly clear tier 1 and some of tier 2,
@@ -10,6 +10,8 @@ Tiers:
   2  2-4 step linear pipeline
   3  5-10 step conditional / looping
   4  multi-step requiring error recovery (a tool deliberately fails)
+  5  hard discriminators (property-tested coding + long-horizon agentic) meant
+     to separate frontier models that saturate tiers 1-4
 
 Categories (capability axis, orthogonal to tier): retrieval, data, agentic,
 coding (write+run code via run_python), reasoning (pure deduction).
@@ -543,5 +545,106 @@ R_PLAN = Task("r_constraint_plan", 3, "reasoning",
               max_steps=8, max_tokens=1024, judge_path=True, parametrize=_gen_r_plan)
 
 
+# --------------------------------------------------------------------------- #
+# Tier 5 — hard discriminators (designed to separate frontier models)
+# --------------------------------------------------------------------------- #
+def _setup_noop(env):
+    pass  # params-only task; the grader/spec needs no seeded files
+
+
+# -- A: algorithmic coding, graded by property testing -------------------- #
+def _merge_ref(intervals):
+    """Reference: merge overlapping/touching intervals, sorted by start."""
+    if not intervals:
+        return []
+    s = sorted([list(iv) for iv in intervals])
+    out = [list(s[0])]
+    for a, b in s[1:]:
+        if a <= out[-1][1]:               # touching (a == end) counts as overlap
+            out[-1][1] = max(out[-1][1], b)
+        else:
+            out.append([a, b])
+    return out
+
+def _gen_h_merge(rng: random.Random) -> dict:
+    cases = [([], []), ([[5, 5]], [[5, 5]]), ([[1, 2], [2, 3]], [[1, 3]])]  # edges
+    for _ in range(7):
+        ivs = []
+        for _ in range(rng.randint(3, 8)):
+            a = rng.randint(0, 20)
+            ivs.append([a, a + rng.randint(0, 8)])
+        rng.shuffle(ivs)
+        cases.append((ivs, _merge_ref(ivs)))
+    return {"cases": cases}
+
+def _check_h_merge(env, traj):
+    cases = [(c[0], c[1]) for c in env.scratch["params"]["cases"]]
+    grader = (
+        "import solution\n"
+        f"cases = {cases!r}\n"
+        "norm = lambda x: [list(p) for p in x]\n"
+        "print('PASS' if all(norm(solution.merge(i)) == norm(e) "
+        "for i, e in cases) else 'FAIL')\n"
+    )
+    try:
+        env.write("_grader.py", grader)
+    except Exception:
+        return False
+    proc = _run_file(env, "_grader.py")
+    return bool(proc) and proc.stdout.strip().endswith("PASS")
+
+H_MERGE = Task("h_merge_intervals", 5, "coding",
+               "Write a function merge(intervals) in solution.py. It takes a list of "
+               "[start, end] integer intervals (possibly unsorted and overlapping) and "
+               "returns the list of merged, non-overlapping intervals sorted by start. "
+               "Intervals that merely TOUCH at an endpoint (e.g. [1,2] and [2,3]) must be "
+               "merged into one ([1,3]). An empty input returns an empty list. Example: "
+               "merge([[1,3],[2,6],[8,10]]) returns [[1,6],[8,10]]. Define the function "
+               "only; do not call it.",
+               CODE_TOOLS, _setup_noop, _check_h_merge,
+               max_steps=16, max_tokens=2048, judge_path=True, parametrize=_gen_h_merge)
+
+
+# -- B: long-horizon agentic data-join (BASE_TOOLS only -> mental bookkeeping) #
+_REGIONS = ["North", "South", "East", "West"]
+
+def _gen_h_join(rng: random.Random) -> dict:
+    customers = {f"C{i+1}": rng.choice(_REGIONS) for i in range(rng.randint(3, 5))}
+    totals: dict = {}
+    orders = []
+    for j in range(rng.randint(10, 15)):
+        cid = rng.choice(list(customers))
+        amt = rng.randint(1, 99)
+        orders.append((f"O{j+1}", cid, amt))
+        totals[customers[cid]] = totals.get(customers[cid], 0) + amt
+    cust_csv = "customer_id,region\n" + "".join(
+        f"{c},{r}\n" for c, r in customers.items())
+    order_csv = "order_id,customer_id,amount\n" + "".join(
+        f"{o},{c},{a}\n" for o, c, a in orders)
+    return {"customers_csv": cust_csv, "orders_csv": order_csv, "answer": totals}
+
+def _setup_h_join(env):
+    p = env.scratch["params"]
+    env.write("customers.csv", p["customers_csv"])
+    env.write("orders.csv", p["orders_csv"])
+
+def _check_h_join(env, traj):
+    try:
+        got = {k: int(v) for k, v in json.loads(env.read("region_totals.json")).items()}
+        return got == env.scratch["params"]["answer"]
+    except Exception:
+        return False
+
+H_JOIN = Task("h_revenue_by_region", 5, "agentic",
+              "orders.csv has columns order_id,customer_id,amount. customers.csv has "
+              "columns customer_id,region. For each region, sum the amount of all orders "
+              "placed by customers in that region. Write a JSON object mapping region "
+              "name to its integer total to region_totals.json. Only include regions that "
+              "have at least one order.",
+              BASE_TOOLS, _setup_h_join, _check_h_join,
+              max_steps=10, max_tokens=1536, judge_path=True, parametrize=_gen_h_join)
+
+
 TASKS = [T1A, T1B, T2A, T2B, T2C, T3A, T3B, T4A, T4B, T4C,
-         C_IMPL, C_FIX, C_TRANSFORM, R_MATH, R_LOGIC, R_PLAN]
+         C_IMPL, C_FIX, C_TRANSFORM, R_MATH, R_LOGIC, R_PLAN,
+         H_MERGE, H_JOIN]

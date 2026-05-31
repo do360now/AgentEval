@@ -79,6 +79,7 @@ def main():
     ap.add_argument("--judge", help="provider:model for LLM-as-judge path scoring")
     ap.add_argument("--k", type=int, default=5, help="repeats per task (default 5)")
     ap.add_argument("--tiers", nargs="*", type=int, help="filter to these tiers")
+    ap.add_argument("--tasks", nargs="*", help="filter to these task_ids")
     ap.add_argument("--seed", type=int, default=0,
                     help="base seed for procedural task generation (default 0)")
     ap.add_argument("--out", default=".", help="output directory")
@@ -89,6 +90,8 @@ def main():
     tasks = TASKS
     if args.tiers:
         tasks = [t for t in tasks if t.tier in args.tiers]
+    if args.tasks:
+        tasks = [t for t in tasks if t.task_id in args.tasks]
     models = build_models(args)
     judge = build_judge(args.judge)
 
