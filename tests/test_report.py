@@ -120,5 +120,41 @@ def test_aggregate_has_by_category():
     agg = aggregate(rows)
     assert "by_category" in agg
     assert agg["by_category"]["m|coding"]["pass_at_1"] == 0.5
-    assert agg["by_category"]["m|coding"]["pass_at_k"] == 1
+    # category pass@k = mean of per-task pass@k: c_impl solved (1), c_fix never (0) -> 0.5
+    assert agg["by_category"]["m|coding"]["pass_at_k"] == 0.5
     assert agg["by_category"]["m|reasoning"]["pass_at_1"] == 1.0
+
+
+# --- cost + reliability: pass@k fix, reliability fields, token split ------- #
+from harness.core import RunResult as _RRr
+from harness.report import aggregate as _agg
+
+
+def _rr(model, task, tier, cat, success, **kw):
+    base = dict(task_id=task, tier=tier, category=cat, model=model, run_index=0,
+                success=success, n_steps=2, invalid_rate=0.0, tokens_used=30,
+                halt_reason="done", wall_seconds=0.1, input_tokens=20,
+                output_tokens=10, token_source="measured")
+    base.update(kw)
+    return _RRr(**base)
+
+
+def test_tier_passk_is_mean_of_per_task_passk():
+    rows = [
+        _rr("m", "A", 5, "coding", False), _rr("m", "A", 5, "coding", False),
+        _rr("m", "B", 5, "agentic", True), _rr("m", "B", 5, "agentic", True),
+    ]
+    agg = _agg(rows)
+    assert agg["by_task"]["m|A"]["pass_at_k"] == 0
+    assert agg["by_task"]["m|B"]["pass_at_k"] == 1
+    assert agg["by_tier"]["m|tier5"]["pass_at_k"] == 0.5
+
+
+def test_summarize_has_reliability_and_token_split():
+    rows = [_rr("m", "A", 1, "data", True, halt_reason="done"),
+            _rr("m", "A", 1, "data", False, halt_reason="max_steps")]
+    s = _agg(rows)["by_task"]["m|A"]
+    assert s["mean_input_tokens"] == 20
+    assert s["mean_output_tokens"] == 10
+    assert s["done_rate"] == 0.5
+    assert s["crash_rate"] == 0.0
