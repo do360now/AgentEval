@@ -34,10 +34,14 @@ def run_task(task: Task, adapter, model_name: str, run_index: int,
         {"role": "user", "content": f"TASK: {task.goal}"}
     ]
 
+    token_source = "measured"
     try:
         for _ in range(task.max_steps):
             action = adapter.act(messages, task.tool_specs(), task.max_tokens)
             traj.tokens_used += action.tokens
+            traj.input_tokens_used += action.input_tokens
+            traj.output_tokens_used += action.output_tokens
+            token_source = action.token_source
 
             # Budget guard: stop if we've blown the pinned token ceiling.
             if traj.tokens_used > task.max_tokens * task.max_steps:
@@ -102,6 +106,9 @@ def run_task(task: Task, adapter, model_name: str, run_index: int,
         wall_seconds=round(snap_seconds, 2),
         judge_score=judge_score, judge_rationale=judge_rationale,
         seed=seed,
+        input_tokens=traj.input_tokens_used,
+        output_tokens=traj.output_tokens_used,
+        token_source=token_source,
     )
 
 

@@ -260,3 +260,28 @@ def test_run_task_invokes_trajectory_sink(scripted_adapter_factory):
     assert captured["model"] == "fake:model"
     assert captured["task_id"] == "t1b_count_logs"
     assert "halt:" in captured["text"]
+
+
+def test_run_task_records_token_split_and_source():
+    from harness.runner import run_task
+    from harness.adapters import ModelAction
+    from tasks.suite import T1B
+
+    class _Adapter:
+        def __init__(self):
+            self.calls = 0
+        def act(self, messages, specs, max_tokens):
+            self.calls += 1
+            if self.calls == 1:
+                return ModelAction(kind="tool_call", tool="write_file",
+                                   args={"path": "answer.txt", "content": "1"},
+                                   raw="x", tokens=30, input_tokens=20,
+                                   output_tokens=10, token_source="estimated")
+            return ModelAction(kind="final", raw="done", tokens=15,
+                               input_tokens=10, output_tokens=5,
+                               token_source="estimated")
+
+    r = run_task(T1B, _Adapter(), "m", 0)
+    assert r.input_tokens == 30 and r.output_tokens == 15
+    assert r.tokens_used == 45
+    assert r.token_source == "estimated"
