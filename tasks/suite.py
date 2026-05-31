@@ -23,6 +23,7 @@ from __future__ import annotations
 import itertools
 import json
 import random
+import shutil
 import subprocess
 import sys
 
@@ -64,29 +65,64 @@ STAT = Tool("stat_file", "Check if a file exists and its size.",
 BASE_TOOLS = [READ, WRITE, LIST, STAT]
 
 
+_BWRAP_PROBED = None   # None=unprobed, ""=unavailable/non-functional, else its path
+
+def _bwrap_bin() -> str:
+    """Path to a WORKING bubblewrap, or '' if unavailable. Probed once and cached."""
+    global _BWRAP_PROBED
+    if _BWRAP_PROBED is None:
+        b = shutil.which("bwrap")
+        try:
+            ok = bool(b) and subprocess.run(
+                [b, "--ro-bind", "/", "/", "--unshare-all", "--die-with-parent",
+                 "--", "true"], capture_output=True, timeout=10).returncode == 0
+        except Exception:
+            ok = False
+        _BWRAP_PROBED = b if ok else ""
+    return _BWRAP_PROBED
+
+
+def _sandboxed_python(argv: list[str], root) -> tuple[list[str], bool]:
+    """Wrap a python argv in a bubblewrap jail (host filesystem READ-ONLY, only
+    `root` writable, network unshared) when bwrap works; else return argv unchanged.
+
+    Returns (cmd, sandboxed). The unsandboxed fallback preserves functionality on
+    hosts without bwrap, but then model code runs with the user's full privileges --
+    see the run_python SECURITY note.
+    """
+    b = _bwrap_bin()
+    if not b:
+        return argv, False
+    return ([b, "--ro-bind", "/", "/", "--dev", "/dev", "--proc", "/proc",
+             "--bind", str(root), str(root), "--unshare-all", "--die-with-parent",
+             "--chdir", str(root), "--"] + argv), True
+
+
 def _run_python(env: Environment, path: str):
     """Execute a Python file inside the sandbox and return its output.
 
-    SECURITY: runs untrusted, model-generated Python on the host. It is sandboxed
-    only by (a) running inside the throwaway temp dir (cwd=env.root), (b) Python's
-    isolated mode (-I), and (c) a 10s hard timeout. It is NOT containerized and the
-    process can reach the network/host. Acceptable for trusted models on a dev box;
-    do not point this at adversarial input. A timeout or crash is a real, recoverable
-    observation (valid=True) -- this is how coding error-recovery is exercised.
+    SECURITY: this runs untrusted, model-generated Python. When `bwrap`
+    (bubblewrap) is available it is jailed -- the host filesystem is mounted
+    READ-ONLY, only the throwaway sandbox dir is writable, and the network is
+    unshared -- so generated code cannot touch the live system or exfiltrate. On
+    hosts WITHOUT bwrap it falls back to `python3 -I` (cwd=sandbox, 10s timeout)
+    which is NOT contained -- avoid running adversarial/local models there. A
+    timeout or crash is a real, recoverable observation (valid=True).
     """
     target = env.path(path)
     if not target.exists():
         return {"error": f"no such file: {path}"}
+    cmd, sandboxed = _sandboxed_python([sys.executable, "-I", str(target)], env.root)
     try:
         proc = subprocess.run(
-            [sys.executable, "-I", str(target)],
-            cwd=str(env.root), capture_output=True, text=True, timeout=10,
+            cmd, cwd=str(env.root), capture_output=True, text=True, timeout=10,
         )
     except subprocess.TimeoutExpired:
         return {"error": "timeout after 10s", "returncode": None}
     return {"stdout": proc.stdout[-2000:],
             "stderr": proc.stderr[-2000:],
-            "returncode": proc.returncode}
+            "returncode": proc.returncode,
+            "sandboxed": sandboxed}
 
 
 RUN_PYTHON = Tool(
@@ -312,10 +348,11 @@ def _run_file(env, name):
 
     Uses cwd=env.root (no -I) so that ``import`` statements can find sibling
     modules in the sandbox directory (e.g. the grader importing solution.py).
+    Sandboxed under bwrap when available (it executes the model's solution code).
     """
+    cmd, _ = _sandboxed_python([sys.executable, str(env.path(name))], env.root)
     try:
-        return subprocess.run([sys.executable, str(env.path(name))],
-                              cwd=str(env.root), capture_output=True,
+        return subprocess.run(cmd, cwd=str(env.root), capture_output=True,
                               text=True, timeout=10)
     except Exception:
         return None

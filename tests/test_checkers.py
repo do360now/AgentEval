@@ -459,3 +459,20 @@ def test_h_join_check_uses_params():
 def test_hard_tasks_registered_as_tier5():
     hard = {t.task_id for t in _TASKS if t.tier == 5}
     assert hard == {"h_merge_intervals", "h_revenue_by_region"}
+
+
+# --- run_python sandbox containment (bwrap) ------------------------------- #
+import os as _os
+import pytest as _pytest
+from tasks.suite import _bwrap_bin as _bwrap, _run_python as _rp
+
+
+@_pytest.mark.skipif(not _bwrap(), reason="bwrap not available; run_python falls back unsandboxed")
+def test_run_python_cannot_escape_sandbox():
+    env = _env()
+    sentinel = _os.path.join(_os.path.expanduser("~"), "AGENTEVAL_PWN_TEST")
+    env.write("esc.py", f"open({sentinel!r}, 'w').write('x')")
+    r = _rp(env, "esc.py")
+    assert r["sandboxed"] is True
+    assert r["returncode"] != 0                 # the out-of-jail write raised
+    assert not _os.path.exists(sentinel)        # nothing escaped to $HOME

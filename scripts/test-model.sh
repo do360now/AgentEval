@@ -1,10 +1,16 @@
 #!/usr/bin/env bash
-# Run the agentic eval for one Claude model (or `all`) via the claude-cli proxy.
+# Run the agentic eval for one model (or `all`) on the hard discriminator set.
+#
+# Claude nicknames (haiku/sonnet/opus) run via the `claude -p` proxy. ANY OTHER
+# name is treated as a local Ollama model tag and run via --ollama, e.g.
+# `qwen3:8b`, `gemma2:9b`. (run_python is bwrap-sandboxed, so scoring a local
+# model cannot touch the live filesystem.)
 #
 # Usage:
 #   ./scripts/test-model.sh haiku            # hard discriminator set, k=3
+#   ./scripts/test-model.sh qwen3:8b         # local Ollama model, hard set
 #   ./scripts/test-model.sh opus 5           # hard set, k=5
-#   ./scripts/test-model.sh all              # every model, hard set
+#   ./scripts/test-model.sh all              # every Claude model, hard set
 #   ./scripts/test-model.sh haiku --full     # the WHOLE suite for one model
 #
 # Output: runs/<nick>-<timestamp>/{report.md,results.csv,trajectories/}
@@ -31,17 +37,22 @@ fi
 run_one() {
   local nick="$1"
   local id="${MAP[$nick]:-}"
-  if [ -z "$id" ]; then
-    echo "unknown model '$nick' (valid: ${!MAP[*]} all)" >&2; exit 2
-  fi
-  local out="runs/${nick}-$(date +%Y%m%d-%H%M%S)"
-  mkdir -p "$out"
-  echo ">>> $nick ($id)  k=$K  $([ "$FULL" = 1 ] && echo '[full suite]' || echo '[hard set]')"
-  if [ "$FULL" = 1 ]; then
-    python3 run_eval.py --claude-cli "$id" --k "$K" --out "$out" --dump-trajectories
+  # Claude nickname -> claude-cli proxy; anything else -> local Ollama model tag.
+  local provider
+  if [ -n "$id" ]; then
+    provider="--claude-cli $id"
   else
-    # shellcheck disable=SC2086
-    python3 run_eval.py --claude-cli "$id" --tasks $HARD_TASKS --k "$K" \
+    provider="--ollama $nick"
+    echo ">>> (no Claude nickname '$nick' -- treating as a local Ollama model)"
+  fi
+  local out="runs/${nick//[:\/]/-}-$(date +%Y%m%d-%H%M%S)"
+  mkdir -p "$out"
+  echo ">>> $nick  k=$K  $([ "$FULL" = 1 ] && echo '[full suite]' || echo '[hard set]')"
+  # shellcheck disable=SC2086
+  if [ "$FULL" = 1 ]; then
+    python3 run_eval.py $provider --k "$K" --out "$out" --dump-trajectories
+  else
+    python3 run_eval.py $provider --tasks $HARD_TASKS --k "$K" \
         --out "$out" --dump-trajectories
   fi
   echo "=== report: $out/report.md ==="
