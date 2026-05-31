@@ -155,6 +155,8 @@ class Trajectory:
     finished: bool = False           # did the model signal done itself?
     halt_reason: str = ""            # "done" | "max_steps" | "error"
     tokens_used: int = 0
+    input_tokens_used: int = 0
+    output_tokens_used: int = 0
 
     @property
     def n_steps(self) -> int:
@@ -193,6 +195,9 @@ class RunResult:
     judge_score: Optional[float] = None   # 0..1, only if judge_path
     judge_rationale: str = ""
     seed: int = 0                         # the seed this instance was generated from
+    input_tokens: int = 0
+    output_tokens: int = 0
+    token_source: str = "measured"
 
     def to_row(self) -> dict[str, Any]:
         return self.__dict__.copy()

@@ -36,7 +36,10 @@ class ModelAction:
     args: Optional[dict[str, Any]] = None
     final_text: str = ""
     raw: str = ""
-    tokens: int = 0
+    tokens: int = 0                 # = input_tokens + output_tokens (drives budget guard)
+    input_tokens: int = 0
+    output_tokens: int = 0
+    token_source: str = "measured"  # "measured" | "estimated"
 
 
 # --------------------------------------------------------------------------- #

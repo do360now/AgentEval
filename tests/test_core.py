@@ -143,3 +143,30 @@ def test_as_text_flags_invalid_and_halt():
     assert "[INVALID]" in text
     assert "ghost" in text
     assert "halt: max_steps" in text
+
+
+# --- token split + token_source (cost metrics) ---------------------------- #
+from harness.core import Trajectory as _Traj, RunResult as _RR
+from harness.adapters import ModelAction as _MA
+
+
+def test_modelaction_has_token_split_defaults():
+    a = _MA(kind="final")
+    assert a.input_tokens == 0 and a.output_tokens == 0
+    assert a.token_source == "measured"
+
+
+def test_trajectory_accumulates_token_split():
+    t = _Traj()
+    assert t.input_tokens_used == 0 and t.output_tokens_used == 0
+
+
+def test_runresult_carries_token_split_in_row():
+    r = _RR(task_id="x", tier=1, category="c", model="m", run_index=0,
+            success=True, n_steps=1, invalid_rate=0.0, tokens_used=30,
+            halt_reason="done", wall_seconds=0.1,
+            input_tokens=20, output_tokens=10, token_source="estimated")
+    row = r.to_row()
+    assert row["input_tokens"] == 20
+    assert row["output_tokens"] == 10
+    assert row["token_source"] == "estimated"
