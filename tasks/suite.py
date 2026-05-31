@@ -184,16 +184,25 @@ T2C = Task("t2c_transform", 2, "data",
 # --------------------------------------------------------------------------- #
 # Tier 3 — 5-10 steps, conditional / looping
 # --------------------------------------------------------------------------- #
+def _gen_t3a(rng: random.Random) -> dict:
+    nfiles = rng.randint(2, 4)
+    names = [f"{chr(ord('a') + i)}.log" for i in range(nfiles)]
+    answer = {nm: rng.randint(0, 3) for nm in names}
+    files = {}
+    for nm, ct in answer.items():
+        lines = ["ERROR something failed"] * ct + ["INFO ok", "WARN heads up"]
+        rng.shuffle(lines)
+        files["logs/" + nm] = "\n".join(lines) + "\n"
+    files["logs/readme.txt"] = "this is not a log file\n"
+    return {"files": files, "answer": answer}
+
 def _setup_t3a(env):
-    env.write("logs/a.log", "INFO ok\nERROR bad\nERROR worse\n")
-    env.write("logs/b.log", "INFO fine\n")
-    env.write("logs/c.log", "ERROR oops\nWARN hm\n")
-    env.write("logs/readme.txt", "not a log")
+    for path, content in env.scratch["params"]["files"].items():
+        env.write(path, content)
 
 def _check_t3a(env, traj):
     try:
-        got = json.loads(env.read("errors.json"))
-        return got == {"a.log": 2, "b.log": 0, "c.log": 1}
+        return json.loads(env.read("errors.json")) == env.scratch["params"]["answer"]
     except Exception:
         return False
 
@@ -203,7 +212,7 @@ T3A = Task("t3a_error_counts", 3, "agentic",
            "(without the logs/ prefix) to its error count, to errors.json. "
            "Ignore non-.log files.",
            BASE_TOOLS, _setup_t3a, _check_t3a, max_steps=12, max_tokens=1024,
-           judge_path=True)
+           judge_path=True, parametrize=_gen_t3a)
 
 
 def _setup_t3b(env):

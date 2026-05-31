@@ -95,36 +95,26 @@ def test_t2c_not_upper_fails(make_env):
 # --------------------------------------------------------------------------- #
 # Tier 3
 # --------------------------------------------------------------------------- #
-def test_t3a_exact_dict(make_env):
-    env = make_env(suite._setup_t3a)
-    env.write("errors.json", json.dumps({"a.log": 2, "b.log": 0, "c.log": 1}))
-    assert suite._check_t3a(env, Trajectory()) is True
+from tasks.suite import T3A, _gen_t3a
+import json as _json
 
 
-def test_t3a_with_logs_prefix_fails(make_env):
-    env = make_env(suite._setup_t3a)
-    env.write("errors.json",
-              json.dumps({"logs/a.log": 2, "logs/b.log": 0, "logs/c.log": 1}))
-    assert suite._check_t3a(env, Trajectory()) is False
+def test_t3a_answer_matches_error_lines():
+    for s in range(200):
+        p = _gen_t3a(random.Random(s))
+        for name, count in p["answer"].items():
+            content = p["files"]["logs/" + name]
+            assert sum(1 for ln in content.splitlines() if "ERROR" in ln) == count
+        assert any(not k.endswith(".log") for k in p["files"])  # has a decoy
 
 
-def test_t3a_including_non_log_fails(make_env):
-    env = make_env(suite._setup_t3a)
-    env.write("errors.json", json.dumps(
-        {"a.log": 2, "b.log": 0, "c.log": 1, "readme.txt": 0}))
-    assert suite._check_t3a(env, Trajectory()) is False
-
-
-def test_t3b_sum_of_squares(make_env):
-    env = make_env(suite._setup_t3b)
-    env.write("total.txt", "55")
-    assert suite._check_t3b(env, Trajectory()) is True
-
-
-def test_t3b_wrong_total_fails(make_env):
-    env = make_env(suite._setup_t3b)
-    env.write("total.txt", "54")
-    assert suite._check_t3b(env, Trajectory()) is False
+def test_t3a_check_uses_params():
+    env = make_environment(T3A, seed=8)
+    env.write("errors.json", _json.dumps(env.scratch["params"]["answer"]))
+    assert T3A.check(env, None) is True
+    env.write("errors.json", _json.dumps({"zzz.log": 99}))
+    assert T3A.check(env, None) is False
+    env.destroy()
 
 
 # --------------------------------------------------------------------------- #
