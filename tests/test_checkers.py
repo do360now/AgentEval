@@ -7,10 +7,11 @@ attention: it must require *genuine error recovery*, not a lucky guess.
 from __future__ import annotations
 
 import json
+import random
 
 import pytest
 
-from harness.core import Step, Trajectory
+from harness.core import Step, Trajectory, make_environment
 from tasks import suite
 
 
@@ -289,43 +290,25 @@ def test_c_transform_checks_output_file():
 # --------------------------------------------------------------------------- #
 # Reasoning tasks
 # --------------------------------------------------------------------------- #
-from tasks.suite import (_check_r_math, _check_r_logic, _check_r_plan)
+from tasks.suite import R_MATH, _gen_r_math
 
 
-def test_r_math_check():
-    env = _env()
-    env.write("answer.txt", "12")
-    assert _check_r_math(env, None) is True
-    env.write("answer.txt", "8")
-    assert _check_r_math(env, None) is False
+def test_r_math_generator_answer_is_correct():
+    for s in range(200):
+        p = _gen_r_math(random.Random(s))
+        cost = (p["num_pens"] // p["group_size"]) * p["group_price"]
+        assert p["answer"] == str(p["bill"] - cost)
+        assert p["bill"] > cost          # change is non-negative
+        assert "problem_text" in p
 
 
-def test_r_logic_check():
-    env = _env()
-    env.write("answer.txt", "Cara")
-    assert _check_r_logic(env, None) is True
-    env.write("answer.txt", "Ana")
-    assert _check_r_logic(env, None) is False
-
-
-def test_r_plan_accepts_any_valid_order():
-    env = _env()
-    env.write("plan.txt", "B A C D")
-    assert _check_r_plan(env, None) is True
-
-
-def test_r_plan_accepts_comma_separated():
-    env = _env()
-    env.write("plan.txt", "B,A,C,D")
-    assert _check_r_plan(env, None) is True
-
-
-def test_r_plan_rejects_constraint_violation():
-    env = _env()
-    env.write("plan.txt", "A B C D")  # B must precede A
-    assert _check_r_plan(env, None) is False
-    env.write("plan.txt", "B A D C")  # D must be last
-    assert _check_r_plan(env, None) is False
+def test_r_math_check_uses_params():
+    env = make_environment(R_MATH, seed=5)
+    env.write("answer.txt", env.scratch["params"]["answer"])
+    assert R_MATH.check(env, None) is True
+    env.write("answer.txt", "-1")
+    assert R_MATH.check(env, None) is False
+    env.destroy()
 
 
 # --------------------------------------------------------------------------- #

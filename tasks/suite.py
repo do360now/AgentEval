@@ -18,7 +18,9 @@ To extend: append Task objects to TASKS. Keep tier budgets pinned.
 """
 from __future__ import annotations
 
+import itertools
 import json
+import random
 import subprocess
 import sys
 
@@ -367,14 +369,27 @@ C_TRANSFORM = Task("c_code_transform", 2, "coding",
 # --------------------------------------------------------------------------- #
 # Reasoning — pure deduction, no tool-use confound (read/write only)
 # --------------------------------------------------------------------------- #
+def _gen_r_math(rng: random.Random) -> dict:
+    group_size = rng.randint(2, 4)
+    group_price = rng.randint(1, 5)
+    num_groups = rng.randint(3, 8)
+    num_pens = group_size * num_groups
+    cost = num_groups * group_price
+    bill = next(b for b in (20, 50, 100) if b > cost)
+    answer = bill - cost
+    text = (f"A store sells pens at {group_size} for ${group_price}. A customer buys "
+            f"{num_pens} pens and pays with a ${bill} bill. How many whole dollars of "
+            f"change do they get?")
+    return {"group_size": group_size, "group_price": group_price,
+            "num_pens": num_pens, "bill": bill, "answer": str(answer),
+            "problem_text": text}
+
 def _setup_r_math(env):
-    env.write("problem.txt",
-              "A store sells pens at 3 for $2. John buys 12 pens and pays with a "
-              "$20 bill. How many whole dollars of change does he get?")
+    env.write("problem.txt", env.scratch["params"]["problem_text"])
 
 def _check_r_math(env, traj):
     try:
-        return env.read("answer.txt").strip() == "12"   # 12 pens=4*$2=$8; 20-8=12
+        return env.read("answer.txt").strip() == env.scratch["params"]["answer"]
     except Exception:
         return False
 
@@ -382,7 +397,7 @@ R_MATH = Task("r_multi_step_math", 2, "reasoning",
               "Read problem.txt and solve it. Write ONLY the final integer answer "
               "(number of dollars) to answer.txt.",
               BASE_TOOLS, _setup_r_math, _check_r_math,
-              max_steps=6, max_tokens=1024)
+              max_steps=6, max_tokens=1024, parametrize=_gen_r_math)
 
 
 def _setup_r_logic(env):
