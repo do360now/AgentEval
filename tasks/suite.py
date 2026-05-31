@@ -471,26 +471,55 @@ R_LOGIC = Task("r_logic_grid", 3, "reasoning",
                max_steps=8, max_tokens=1024, judge_path=True, parametrize=_gen_r_logic)
 
 
+def _render_plan(items, constraints):
+    lines = [f"Order these {len(items)} tasks, one per position: {', '.join(items)}. "
+             "Constraints:"]
+    for c in constraints:
+        if c[0] == "before":
+            lines.append(f"- {c[1]} must come before {c[2]}.")
+        else:
+            lines.append(f"- {c[1]} must be last.")
+    return "\n".join(lines)
+
+def _gen_r_plan(rng: random.Random) -> dict:
+    n = rng.choice([4, 5])
+    items = [chr(ord("A") + i) for i in range(n)]
+    valid_order = items[:]
+    rng.shuffle(valid_order)
+    pos = {x: i for i, x in enumerate(valid_order)}
+    pairs = [(a, b) for a in items for b in items if pos[a] < pos[b]]
+    rng.shuffle(pairs)
+    k = rng.randint(n - 1, n + 1)
+    constraints = [("before", a, b) for a, b in pairs[:k]]
+    if rng.random() < 0.5:
+        constraints.append(("last", valid_order[-1]))
+    return {"items": items, "constraints": constraints, "valid_order": valid_order,
+            "problem_text": _render_plan(items, constraints)}
+
 def _setup_r_plan(env):
-    env.write("problem.txt",
-              "Order four tasks A, B, C, D, one per position. Constraints: A must "
-              "come before C; B must come before A; D must be last.")
+    env.write("problem.txt", env.scratch["params"]["problem_text"])
 
 def _check_r_plan(env, traj):
     try:
+        params = env.scratch["params"]
         order = env.read("plan.txt").strip().replace(",", " ").split()
-        if sorted(order) != ["A", "B", "C", "D"]:
-            return False
-        pos = {x: i for i, x in enumerate(order)}
-        return pos["A"] < pos["C"] and pos["B"] < pos["A"] and pos["D"] == 3
     except Exception:
         return False
+    if sorted(order) != sorted(params["items"]):
+        return False
+    pos = {x: i for i, x in enumerate(order)}
+    for c in params["constraints"]:
+        if c[0] == "before" and not pos[c[1]] < pos[c[2]]:
+            return False
+        if c[0] == "last" and pos[c[1]] != len(order) - 1:
+            return False
+    return True
 
 R_PLAN = Task("r_constraint_plan", 3, "reasoning",
-              "Read problem.txt. Output a valid ordering of the four tasks (the four "
-              "letters separated by spaces) to plan.txt.",
+              "Read problem.txt. Output a valid ordering of the tasks (the letters "
+              "separated by spaces) to plan.txt.",
               BASE_TOOLS, _setup_r_plan, _check_r_plan,
-              max_steps=8, max_tokens=1024, judge_path=True)
+              max_steps=8, max_tokens=1024, judge_path=True, parametrize=_gen_r_plan)
 
 
 TASKS = [T1A, T1B, T2A, T2B, T2C, T3A, T3B, T4A, T4B, T4C,

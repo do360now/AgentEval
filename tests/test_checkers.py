@@ -333,6 +333,32 @@ def test_r_logic_check_uses_params():
     env.destroy()
 
 
+from tasks.suite import R_PLAN, _gen_r_plan
+
+
+def test_r_plan_ground_truth_order_satisfies_constraints():
+    for s in range(200):
+        p = _gen_r_plan(random.Random(s))
+        order = p["valid_order"]
+        pos = {x: i for i, x in enumerate(order)}
+        for c in p["constraints"]:
+            if c[0] == "before":
+                assert pos[c[1]] < pos[c[2]]
+            else:
+                assert pos[c[1]] == len(order) - 1
+
+
+def test_r_plan_check_accepts_valid_rejects_invalid():
+    env = make_environment(R_PLAN, seed=11)
+    p = env.scratch["params"]
+    env.write("plan.txt", " ".join(p["valid_order"]))
+    assert R_PLAN.check(env, None) is True
+    env.write("plan.txt", " ".join(reversed(p["valid_order"])))
+    # reversed almost always violates a 'before'/'last' constraint
+    assert R_PLAN.check(env, None) is False
+    env.destroy()
+
+
 # --------------------------------------------------------------------------- #
 # Agentic t4c + suite integrity
 # --------------------------------------------------------------------------- #
