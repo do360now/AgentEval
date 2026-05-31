@@ -2,9 +2,20 @@
 from __future__ import annotations
 
 import csv
+import csv as _csv
 
 from harness.core import RunResult
 from harness.report import aggregate, write_csv, write_markdown_report
+
+
+def test_write_csv_includes_seed(tmp_path):
+    rows = [RunResult(task_id="t", tier=1, category="c", model="m", run_index=0,
+                      success=True, n_steps=1, invalid_rate=0.0, tokens_used=5,
+                      halt_reason="done", wall_seconds=0.1, seed=777)]
+    p = tmp_path / "r.csv"
+    write_csv(rows, str(p))
+    got = list(_csv.DictReader(open(p)))
+    assert got[0]["seed"] == "777"
 
 
 def _result(model="m", task="t1", tier=1, run_index=0, success=True,

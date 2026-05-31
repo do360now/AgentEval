@@ -65,6 +65,8 @@ def write_csv(rows: list[RunResult], path: str) -> None:
 def write_markdown_report(rows: list[RunResult], agg: dict, path: str) -> None:
     lines = ["# Agentic Eval — Results\n",
              f"Total runs: {len(rows)}\n",
+             "_Procedurally-generated tasks: each repeat is a distinct seeded instance, "
+             "so pass@k = solved ≥ 1 of k distinct instances._\n",
              "## Pass rates by tier\n",
              "| Model | Tier | pass@1 | pass@k | mean steps | invalid% | mean tokens | judge |",
              "|---|---|---|---|---|---|---|---|"]

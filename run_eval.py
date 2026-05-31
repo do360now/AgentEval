@@ -79,6 +79,8 @@ def main():
     ap.add_argument("--judge", help="provider:model for LLM-as-judge path scoring")
     ap.add_argument("--k", type=int, default=5, help="repeats per task (default 5)")
     ap.add_argument("--tiers", nargs="*", type=int, help="filter to these tiers")
+    ap.add_argument("--seed", type=int, default=0,
+                    help="base seed for procedural task generation (default 0)")
     ap.add_argument("--out", default=".", help="output directory")
     ap.add_argument("--dump-trajectories", action="store_true",
                     help="write each run's trajectory text to <out>/trajectories/")
@@ -105,7 +107,7 @@ def main():
           f"= {len(tasks)*len(models)*args.k} runs")
     rows = run_study(tasks, models, k=args.k, judge_adapter=judge,
                      progress=lambda s: print("  ", s),
-                     trajectory_sink=sink)
+                     trajectory_sink=sink, base_seed=args.seed)
 
     csv_path = os.path.join(args.out, "results.csv")
     md_path = os.path.join(args.out, "report.md")
