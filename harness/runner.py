@@ -43,8 +43,14 @@ def run_task(task: Task, adapter, model_name: str, run_index: int,
             traj.output_tokens_used += action.output_tokens
             token_source = action.token_source
 
-            # Budget guard: stop if we've blown the pinned token ceiling.
-            if traj.tokens_used > task.max_tokens * task.max_steps:
+            # Budget guard: bound the model's GENERATION (output) across steps.
+            # max_tokens is the per-call generation cap, so max_tokens * max_steps
+            # is the cumulative output ceiling. We deliberately count output only,
+            # not input: re-sent tool schemas + history are fixed harness overhead
+            # the model doesn't control, and on the real API path that input dwarfs
+            # the output (e.g. ~1900 in / ~165 out on turn one) and would trip the
+            # guard on step 1. The CLI proxy is unaffected (it halts on "done").
+            if traj.output_tokens_used > task.max_tokens * task.max_steps:
                 traj.halt_reason = "token_budget"
                 break
 

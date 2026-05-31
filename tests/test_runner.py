@@ -72,9 +72,9 @@ def test_run_task_hits_max_steps():
 
 
 def test_run_task_token_budget_guard():
-    # budget = max_tokens * max_steps = 10 * 2 = 20; one 100-token turn blows it.
+    # output budget = max_tokens * max_steps = 10 * 2 = 20; one 100-output turn blows it.
     big = ModelAction(kind="tool_call", tool="touch", args={"name": "x"},
-                      tokens=100)
+                      tokens=100, output_tokens=100)
     res = run_task(_make_task(max_steps=2, max_tokens=10),
                    AlwaysAdapter(big), "fake", 0)
     assert res.halt_reason == "token_budget"
