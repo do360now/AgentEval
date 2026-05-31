@@ -476,3 +476,28 @@ def test_run_python_cannot_escape_sandbox():
     assert r["sandboxed"] is True
     assert r["returncode"] != 0                 # the out-of-jail write raised
     assert not _os.path.exists(sentinel)        # nothing escaped to $HOME
+
+
+def test_seatbelt_profile_denies_network_and_outside_writes():
+    prof = suite._seatbelt_profile("/tmp/box")
+    assert "(deny network*)" in prof
+    assert "(deny file-write*)" in prof
+    assert '(subpath "/tmp/box")' in prof          # only the sandbox dir is writable
+
+
+def test_sandboxed_python_uses_macos_seatbelt_when_no_bwrap(monkeypatch):
+    # Simulate macOS: no bwrap, sandbox-exec present.
+    monkeypatch.setattr(suite, "_bwrap_bin", lambda: "")
+    monkeypatch.setattr(suite, "_sandbox_exec_bin", lambda: "/usr/bin/sandbox-exec")
+    cmd, sandboxed = suite._sandboxed_python(["python3", "-I", "/tmp/box/s.py"], "/tmp/box")
+    assert sandboxed is True
+    assert cmd[0] == "/usr/bin/sandbox-exec" and cmd[1] == "-p"
+    assert "(deny network*)" in cmd[2]
+    assert cmd[-3:] == ["python3", "-I", "/tmp/box/s.py"]
+
+
+def test_sandboxed_python_falls_back_when_no_sandbox(monkeypatch):
+    monkeypatch.setattr(suite, "_bwrap_bin", lambda: "")
+    monkeypatch.setattr(suite, "_sandbox_exec_bin", lambda: "")
+    cmd, sandboxed = suite._sandboxed_python(["python3", "-I", "x.py"], "/tmp/box")
+    assert sandboxed is False and cmd == ["python3", "-I", "x.py"]

@@ -82,32 +82,56 @@ def _bwrap_bin() -> str:
     return _BWRAP_PROBED
 
 
-def _sandboxed_python(argv: list[str], root) -> tuple[list[str], bool]:
-    """Wrap a python argv in a bubblewrap jail (host filesystem READ-ONLY, only
-    `root` writable, network unshared) when bwrap works; else return argv unchanged.
+_SANDBOX_EXEC_PROBED = None   # macOS Seatbelt: None=unprobed, ""=absent, else path
 
-    Returns (cmd, sandboxed). The unsandboxed fallback preserves functionality on
-    hosts without bwrap, but then model code runs with the user's full privileges --
-    see the run_python SECURITY note.
+def _sandbox_exec_bin() -> str:
+    """Path to macOS `sandbox-exec`, or '' if absent (e.g. on Linux). Cached."""
+    global _SANDBOX_EXEC_PROBED
+    if _SANDBOX_EXEC_PROBED is None:
+        _SANDBOX_EXEC_PROBED = shutil.which("sandbox-exec") or ""
+    return _SANDBOX_EXEC_PROBED
+
+
+def _seatbelt_profile(root) -> str:
+    """A macOS Seatbelt (SBPL) profile: allow everything, then deny network and
+    all filesystem writes, then re-allow writes only under `root`. Last matching
+    rule wins, so writes outside the sandbox dir and any network are denied.
+    """
+    return ("(version 1)(allow default)(deny network*)(deny file-write*)"
+            f'(allow file-write* (subpath "{root}") (literal "/dev/null") '
+            '(literal "/dev/random") (literal "/dev/urandom"))')
+
+
+def _sandboxed_python(argv: list[str], root) -> tuple[list[str], bool]:
+    """Wrap a python argv in an OS sandbox; returns (cmd, sandboxed).
+
+    Linux: bubblewrap -- host filesystem READ-ONLY, only `root` writable, network
+    unshared. macOS: `sandbox-exec` with a Seatbelt profile that denies network and
+    all writes outside `root`. If neither is available it returns argv unchanged and
+    model code runs with the user's full privileges -- see the run_python SECURITY note.
     """
     b = _bwrap_bin()
-    if not b:
-        return argv, False
-    return ([b, "--ro-bind", "/", "/", "--dev", "/dev", "--proc", "/proc",
-             "--bind", str(root), str(root), "--unshare-all", "--die-with-parent",
-             "--chdir", str(root), "--"] + argv), True
+    if b:
+        return ([b, "--ro-bind", "/", "/", "--dev", "/dev", "--proc", "/proc",
+                 "--bind", str(root), str(root), "--unshare-all", "--die-with-parent",
+                 "--chdir", str(root), "--"] + argv), True
+    sb = _sandbox_exec_bin()
+    if sb:
+        return ([sb, "-p", _seatbelt_profile(root)] + argv), True
+    return argv, False
 
 
 def _run_python(env: Environment, path: str):
     """Execute a Python file inside the sandbox and return its output.
 
-    SECURITY: this runs untrusted, model-generated Python. When `bwrap`
-    (bubblewrap) is available it is jailed -- the host filesystem is mounted
-    READ-ONLY, only the throwaway sandbox dir is writable, and the network is
-    unshared -- so generated code cannot touch the live system or exfiltrate. On
-    hosts WITHOUT bwrap it falls back to `python3 -I` (cwd=sandbox, 10s timeout)
-    which is NOT contained -- avoid running adversarial/local models there. A
-    timeout or crash is a real, recoverable observation (valid=True).
+    SECURITY: this runs untrusted, model-generated Python. It is jailed by the
+    best available OS sandbox -- Linux `bwrap` (host filesystem READ-ONLY, only the
+    sandbox dir writable, network unshared) or macOS `sandbox-exec` (Seatbelt:
+    network denied, writes confined to the sandbox dir) -- so generated code cannot
+    touch the live system or exfiltrate. Only if NEITHER is present does it fall
+    back to bare `python3 -I` (cwd=sandbox, 10s timeout), which is NOT contained --
+    avoid running adversarial/local models there. The observation reports
+    `sandboxed: bool`. A timeout or crash is a real, recoverable observation.
     """
     target = env.path(path)
     if not target.exists():
