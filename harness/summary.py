@@ -42,10 +42,13 @@ def _suggest_helloai_id(eval_model_id: str) -> str:
 def _display_model(eval_model_id: str) -> str:
     # "claude-cli:claude-opus-4-8" -> "Claude Opus 4.8"
     name = eval_model_id.split(":")[-1]
-    parts = name.replace("claude-", "claude ").replace("-", " ").split()
-    out = " ".join(p.capitalize() if not any(c.isdigit() for c in p) else p
-                   for p in parts)
-    return out.replace("Claude Claude", "Claude")
+    words: list[str] = []
+    for p in name.replace("claude-", "claude ").replace("-", " ").split():
+        if p.isdigit() and words and words[-1].replace(".", "").isdigit():
+            words[-1] = f"{words[-1]}.{p}"          # merge version digits: 4 5 -> 4.5
+        else:
+            words.append(p if any(c.isdigit() for c in p) else p.capitalize())
+    return " ".join(words).replace("Claude Claude", "Claude")
 
 
 def _summ_metrics(s: dict) -> dict:

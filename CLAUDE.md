@@ -135,3 +135,6 @@ run_eval.py          CLI: builds adapters, filters tiers, runs the matrix, write
   byte-identical duplicates.
 - **`run_python` executes untrusted generated code on the host** — sandboxed only by temp-dir cwd + `python3 -I` + a 10s timeout, NOT containerized. Fine for trusted models; never point it at adversarial input.
 - **`--dump-trajectories`** writes each run's path text to `<out>/trajectories/<model>__<task>__k<i>.txt` for post-hoc diagnosis (trajectories are otherwise not persisted).
+- **Tokens are split input/output** with a `token_source` tag (`measured` for API/Ollama from `usage`/`eval_count`, `estimated` `chars//4` for the CLI proxy). `tokens = input + output` still drives the budget guard — the split is additive. agenteval emits raw counts only; cost math lives downstream (helloai).
+- **Tier/category `pass@k` = mean of per-task `pass@k`** (fraction of the group's tasks solved ≥1 time in k), NOT `any()` over pooled runs. Per-task `pass@k` is still `any()` over that task's k runs.
+- **`eval-summary.json`** is written to `--out` each run (`harness/summary.py`): a typed artifact for downstream consumers with overall/by_tier/by_category/by_task metrics, reliability (invalid/done/crash rates), the token split + `token_source`, a `git_sha` in `suite_version`, and a *suggested* (overridable) `helloai_model_id`.

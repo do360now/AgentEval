@@ -27,6 +27,7 @@ from harness.adapters import (AnthropicAdapter, ClaudeCliAdapter,
                               OllamaAdapter, OpenAIAdapter)
 from harness.report import aggregate, write_csv, write_markdown_report
 from harness.runner import run_study
+from harness.summary import build_summary, write_summary
 from tasks.suite import TASKS
 
 
@@ -117,7 +118,9 @@ def main():
     write_csv(rows, csv_path)
     agg = aggregate(rows)
     write_markdown_report(rows, agg, md_path)
-    print(f"\nWrote {csv_path} and {md_path}")
+    summary_path = os.path.join(args.out, "eval-summary.json")
+    write_summary(build_summary(rows, agg, args.k), summary_path)
+    print(f"\nWrote {csv_path}, {md_path}, and {summary_path}")
 
 
 if __name__ == "__main__":
