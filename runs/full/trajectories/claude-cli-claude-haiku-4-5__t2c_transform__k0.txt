@@ -1,5 +1,0 @@
-1. call read_file({"path": "note.txt"})
-   -> "the quick brown fox"
-2. call write_file({"path": "upper.txt", "content": "THE QUICK BROWN FOX"})
-   -> "wrote 19 chars to upper.txt"
-halt: done

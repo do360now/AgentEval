@@ -1,5 +1,0 @@
-1. call read_file({"path": "data.csv"})
-   -> "name,revenue\na,100\nb,200\nc,300\n"
-2. call write_file({"path": "result.txt", "content": "200"})
-   -> "wrote 3 chars to result.txt"
-halt: done

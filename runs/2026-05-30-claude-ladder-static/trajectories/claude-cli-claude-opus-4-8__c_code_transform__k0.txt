@@ -1,7 +1,0 @@
-1. call write_file({"path": "sum_nums.py", "content": "with open('nums.txt') as f:\n    total = sum(int(line) for line in f if line.strip())\nwith open('sum.txt', 'w') as f:\n    f.write(str(total))\n"})
-   -> "wrote 141 chars to sum_nums.py"
-2. call run_python({"path": "sum_nums.py"})
-   -> {"stdout": "", "stderr": "", "returncode": 0}
-3. call read_file({"path": "sum.txt"})
-   -> "5050"
-halt: done

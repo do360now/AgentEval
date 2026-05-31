@@ -1,5 +1,0 @@
-1. call read_file({"path": "problem.txt"})
-   -> "A store sells pens at 3 for $2. John buys 12 pens and pays with a $20 bill. How many whole dollars of change does he get?"
-2. call write_file({"path": "answer.txt", "content": "12"})
-   -> "wrote 2 chars to answer.txt"
-halt: done

@@ -1,5 +1,0 @@
-1. call read_file({"path": "orders.csv"})
-   -> "id,qty,price\n1,2,abc\n2,3,5\n3,1,10\n"
-2. call write_file({"path": "revenue.txt", "content": "25"})
-   -> "wrote 2 chars to revenue.txt"
-halt: done

@@ -1,7 +1,0 @@
-task_id,tier,category,model,run_index,success,n_steps,invalid_rate,tokens_used,halt_reason,wall_seconds,judge_score,judge_rationale
-t1a_read_value,1,retrieval,claude-cli:claude-opus-4-8,0,True,2,0.0,837,done,21.1,,
-t1b_count_logs,1,retrieval,claude-cli:claude-opus-4-8,0,True,2,0.0,885,done,17.85,,
-t1a_read_value,1,retrieval,claude-cli:claude-sonnet-4-6,0,True,2,0.0,839,done,18.89,,
-t1b_count_logs,1,retrieval,claude-cli:claude-sonnet-4-6,0,True,2,0.0,865,done,24.05,,
-t1a_read_value,1,retrieval,claude-cli:claude-haiku-4-5,0,True,2,0.0,903,done,13.56,,
-t1b_count_logs,1,retrieval,claude-cli:claude-haiku-4-5,0,True,2,0.0,903,done,16.4,,
