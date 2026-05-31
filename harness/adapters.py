@@ -155,9 +155,12 @@ class OllamaAdapter:
         r.raise_for_status()
         data = r.json()
         text = data.get("message", {}).get("content", "")
-        tokens = data.get("eval_count", 0) + data.get("prompt_eval_count", 0)
+        inp = data.get("prompt_eval_count", 0)
+        out = data.get("eval_count", 0)
         action = parse_react(text) if self.react else _parse_native(text)
-        action.tokens = tokens
+        action.input_tokens, action.output_tokens = inp, out
+        action.tokens = inp + out
+        action.token_source = "measured"
         return action
 
 
@@ -203,18 +206,25 @@ class AnthropicAdapter:
         r.raise_for_status()
         data = r.json()
         usage = data.get("usage", {})
-        tokens = usage.get("input_tokens", 0) + usage.get("output_tokens", 0)
+        inp = usage.get("input_tokens", 0)
+        out = usage.get("output_tokens", 0)
+
+        def _finish(a: ModelAction) -> ModelAction:
+            a.input_tokens, a.output_tokens = inp, out
+            a.tokens = inp + out
+            a.token_source = "measured"
+            return a
+
         for block in data.get("content", []):
             if block.get("type") == "tool_use":
                 if block["name"] == "finish":
-                    return ModelAction(kind="final", raw=json.dumps(data),
-                                       tokens=tokens)
-                return ModelAction(kind="tool_call", tool=block["name"],
-                                   args=block.get("input", {}),
-                                   raw=json.dumps(data), tokens=tokens)
+                    return _finish(ModelAction(kind="final", raw=json.dumps(data)))
+                return _finish(ModelAction(kind="tool_call", tool=block["name"],
+                                           args=block.get("input", {}),
+                                           raw=json.dumps(data)))
         # No tool call -> treat text as final.
         txt = " ".join(b.get("text", "") for b in data.get("content", []))
-        return ModelAction(kind="final", final_text=txt, raw=txt, tokens=tokens)
+        return _finish(ModelAction(kind="final", final_text=txt, raw=txt))
 
 
 # --------------------------------------------------------------------------- #
@@ -248,22 +258,30 @@ class OpenAIAdapter:
         )
         r.raise_for_status()
         data = r.json()
-        tokens = data.get("usage", {}).get("total_tokens", 0)
+        usage = data.get("usage", {})
+        inp = usage.get("prompt_tokens", 0)
+        out = usage.get("completion_tokens", 0)
+
+        def _finish(a: ModelAction) -> ModelAction:
+            a.input_tokens, a.output_tokens = inp, out
+            a.tokens = inp + out
+            a.token_source = "measured"
+            return a
+
         msg = data["choices"][0]["message"]
         calls = msg.get("tool_calls") or []
         if calls:
             call = calls[0]["function"]
             if call["name"] == "finish":
-                return ModelAction(kind="final", raw=json.dumps(msg),
-                                   tokens=tokens)
+                return _finish(ModelAction(kind="final", raw=json.dumps(msg)))
             try:
                 args = json.loads(call.get("arguments", "{}"))
             except json.JSONDecodeError:
                 args = {}
-            return ModelAction(kind="tool_call", tool=call["name"], args=args,
-                               raw=json.dumps(msg), tokens=tokens)
-        return ModelAction(kind="final", final_text=msg.get("content", ""),
-                           raw=json.dumps(msg), tokens=tokens)
+            return _finish(ModelAction(kind="tool_call", tool=call["name"], args=args,
+                                       raw=json.dumps(msg)))
+        return _finish(ModelAction(kind="final", final_text=msg.get("content", ""),
+                                   raw=json.dumps(msg)))
 
 
 # --------------------------------------------------------------------------- #
@@ -331,5 +349,8 @@ class ClaudeCliAdapter:
             except json.JSONDecodeError:
                 text = out  # fall back to raw text if not JSON
         action = parse_react(text)
-        action.tokens = (len(prompt) + len(text)) // 4  # see class docstring
+        action.input_tokens = len(prompt) // 4    # see class docstring: estimate
+        action.output_tokens = len(text) // 4
+        action.tokens = action.input_tokens + action.output_tokens
+        action.token_source = "estimated"
         return action

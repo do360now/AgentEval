@@ -151,7 +151,7 @@ def test_anthropic_text_only_is_final(monkeypatch):
 # --------------------------------------------------------------------------- #
 def test_openai_tool_call(monkeypatch):
     payload = {
-        "usage": {"total_tokens": 42},
+        "usage": {"prompt_tokens": 32, "completion_tokens": 10},
         "choices": [{"message": {"tool_calls": [
             {"function": {"name": "read_file",
                           "arguments": '{"path": "a.txt"}'}}]}}],
@@ -162,6 +162,7 @@ def test_openai_tool_call(monkeypatch):
     assert a.tool == "read_file"
     assert a.args == {"path": "a.txt"}
     assert a.tokens == 42
+    assert a.input_tokens == 32 and a.output_tokens == 10
 
 
 def test_openai_finish_is_final(monkeypatch):
@@ -278,3 +279,64 @@ def test_parse_react_malformed_args_yields_empty_dict():
     action = parse_react(text)
     assert action.tool == "list_dir"
     assert action.args == {}
+
+
+# --- input/output token split per adapter --------------------------------- #
+from harness.adapters import (OllamaAdapter as _Oll, AnthropicAdapter as _Ant,
+                              OpenAIAdapter as _OAI, ClaudeCliAdapter as _Cli)
+
+
+def test_ollama_reports_measured_split(monkeypatch):
+    import harness.adapters as A
+
+    class _R:
+        def raise_for_status(self): pass
+        def json(self):
+            return {"message": {"content": "Action: list_dir\nArgs: {}"},
+                    "prompt_eval_count": 12, "eval_count": 7}
+    monkeypatch.setattr(A.requests, "post", lambda *a, **k: _R())
+    act = _Oll("m").act([{"role": "user", "content": "x"}], [], 64)
+    assert act.input_tokens == 12 and act.output_tokens == 7
+    assert act.tokens == 19 and act.token_source == "measured"
+
+
+def test_anthropic_reports_measured_split(monkeypatch):
+    import harness.adapters as A
+
+    class _R:
+        def raise_for_status(self): pass
+        def json(self):
+            return {"content": [{"type": "text", "text": "done"}],
+                    "usage": {"input_tokens": 100, "output_tokens": 25}}
+    monkeypatch.setattr(A.requests, "post", lambda *a, **k: _R())
+    act = _Ant("m", "key").act([{"role": "user", "content": "x"}], [], 64)
+    assert act.input_tokens == 100 and act.output_tokens == 25
+    assert act.tokens == 125 and act.token_source == "measured"
+
+
+def test_openai_reports_measured_split(monkeypatch):
+    import harness.adapters as A
+
+    class _R:
+        def raise_for_status(self): pass
+        def json(self):
+            return {"choices": [{"message": {"content": "hi"}}],
+                    "usage": {"prompt_tokens": 40, "completion_tokens": 8,
+                              "total_tokens": 48}}
+    monkeypatch.setattr(A.requests, "post", lambda *a, **k: _R())
+    act = _OAI("m", "key").act([{"role": "user", "content": "x"}], [], 64)
+    assert act.input_tokens == 40 and act.output_tokens == 8
+    assert act.token_source == "measured"
+
+
+def test_claude_cli_reports_estimated_split(monkeypatch):
+    import harness.adapters as A
+
+    class _P:
+        stdout = '{"result": "Action: list_dir\\nArgs: {}"}'
+        stderr = ""
+    monkeypatch.setattr(A.subprocess, "run", lambda *a, **k: _P())
+    act = _Cli("m").act([{"role": "user", "content": "x"}], [], 64)
+    assert act.token_source == "estimated"
+    assert act.input_tokens > 0 and act.output_tokens > 0
+    assert act.tokens == act.input_tokens + act.output_tokens
