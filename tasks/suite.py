@@ -319,16 +319,22 @@ def _run_file(env, name):
         return None
 
 
+def _gen_c_impl(rng: random.Random) -> dict:
+    cases = []
+    for _ in range(5):
+        lst = [rng.randint(-9, 9) for _ in range(rng.randint(0, 6))]
+        cases.append((lst, sum(x for x in lst if x % 2 == 0)))
+    return {"cases": cases}
+
 def _setup_c_impl(env):
-    pass  # spec is in the goal; the model authors solution.py
+    pass  # the spec is in the goal; cases live in params for the grader
 
 def _check_c_impl(env, traj):
-    # Held-out cases (NOT shown in the goal) defeat hardcoding.
-    grader = (
-        "import solution\n"
-        "cases = [([1,2,3,4],6), ([10,11,12],22), ([],0), ([7],0), ([2,4,6],12)]\n"
-        "print('PASS' if all(solution.solve(i)==e for i,e in cases) else 'FAIL')\n"
-    )
+    cases = env.scratch["params"]["cases"]
+    grader = ("import solution\n"
+              f"cases = {cases!r}\n"
+              "print('PASS' if all(solution.solve(i) == e for i, e in cases) "
+              "else 'FAIL')\n")
     try:
         env.write("_grader.py", grader)
     except Exception:
@@ -339,9 +345,10 @@ def _check_c_impl(env, traj):
 C_IMPL = Task("c_impl_function", 3, "coding",
               "Write a function solve(nums) in solution.py that returns the sum of "
               "the EVEN integers in the list nums. Example: solve([1,2,3,4]) returns "
-              "6. Do not call the function yourself; just define it.",
+              "6. Note: negative even numbers count too. Do not call the function "
+              "yourself; just define it.",
               CODE_TOOLS, _setup_c_impl, _check_c_impl,
-              max_steps=14, max_tokens=1536, judge_path=True)
+              max_steps=14, max_tokens=1536, judge_path=True, parametrize=_gen_c_impl)
 
 
 def _setup_c_fix(env):

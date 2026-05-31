@@ -258,20 +258,26 @@ def test_run_python_can_write_sandbox_files():
 # --------------------------------------------------------------------------- #
 # Coding tasks
 # --------------------------------------------------------------------------- #
-from tasks.suite import (_check_c_impl, _check_c_fix, _setup_c_fix,
+from tasks.suite import (_check_c_fix, _setup_c_fix,
                          _check_c_transform, _setup_c_transform)
+from tasks.suite import C_IMPL, _gen_c_impl
 
 
-def test_c_impl_passes_correct_solution():
-    env = _env()
-    env.write("solution.py", "def solve(nums):\n    return sum(n for n in nums if n % 2 == 0)\n")
-    assert _check_c_impl(env, None) is True
+def test_c_impl_cases_match_reference():
+    for s in range(200):
+        p = _gen_c_impl(random.Random(s))
+        for inp, exp in p["cases"]:
+            assert exp == sum(x for x in inp if x % 2 == 0)
 
 
-def test_c_impl_fails_wrong_solution():
-    env = _env()
-    env.write("solution.py", "def solve(nums):\n    return 6\n")  # hardcoded
-    assert _check_c_impl(env, None) is False
+def test_c_impl_check_runs_against_seed_cases():
+    env = make_environment(C_IMPL, seed=4)
+    env.write("solution.py",
+              "def solve(nums):\n    return sum(n for n in nums if n % 2 == 0)\n")
+    assert C_IMPL.check(env, None) is True
+    env.write("solution.py", "def solve(nums):\n    return 6\n")  # hardcoded -> fails
+    assert C_IMPL.check(env, None) is False
+    env.destroy()
 
 
 def test_c_fix_passes_when_factorial_correct():
