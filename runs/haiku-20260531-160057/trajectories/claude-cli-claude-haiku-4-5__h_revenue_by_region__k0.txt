@@ -1,0 +1,7 @@
+1. call read_file({"path": "orders.csv"})
+   -> "order_id,customer_id,amount\nO1,C3,89\nO2,C1,93\nO3,C3,86\nO4,C2,29\nO5,C1,91\nO6,C3,32\nO7,C2,58\nO8,C4,23\nO9,C4,84\nO10,C1,15\nO11,C1,86\n"
+2. call read_file({"path": "customers.csv"})
+   -> "customer_id,region\nC1,North\nC2,East\nC3,South\nC4,North\n"
+3. call write_file({"path": "region_totals.json", "content": "{\"North\": 392, \"East\": 87, \"South\": 207}"})
+   -> "wrote 40 chars to region_totals.json"
+halt: done

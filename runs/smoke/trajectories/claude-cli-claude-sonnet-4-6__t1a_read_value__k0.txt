@@ -1,0 +1,5 @@
+1. call read_file({"path": "config.json"})
+   -> "{\"timeout\": 30, \"retries\": 3}"
+2. call write_file({"path": "answer.txt", "content": "30"})
+   -> "wrote 2 chars to answer.txt"
+halt: done

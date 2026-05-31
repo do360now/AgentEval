@@ -1,0 +1,5 @@
+1. call read_file({"path": "problem.txt"})
+   -> "Three friends -- Ana, Ben, Cara -- each own a different pet: a cat, a dog, and a fish. Ana does not own the cat. Ben owns the fish. Who owns the cat?"
+2. call write_file({"path": "answer.txt", "content": "Cara"})
+   -> "wrote 4 chars to answer.txt"
+halt: done

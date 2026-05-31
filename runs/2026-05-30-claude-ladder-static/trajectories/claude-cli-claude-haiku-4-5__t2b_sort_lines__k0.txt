@@ -1,0 +1,5 @@
+1. call read_file({"path": "in.txt"})
+   -> "banana\napple\ncherry\n"
+2. call write_file({"path": "sorted.txt", "content": "apple\nbanana\ncherry\n"})
+   -> "wrote 20 chars to sorted.txt"
+halt: done

@@ -5,3 +5,6 @@ __pycache__/
 
 # Editor / OS
 .DS_Store
+
+.env
+NOTE-FROM-HELLOAI-OPUS.md

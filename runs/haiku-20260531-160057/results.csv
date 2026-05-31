@@ -1,0 +1,3 @@
+task_id,tier,category,model,run_index,success,n_steps,invalid_rate,tokens_used,halt_reason,wall_seconds,judge_score,judge_rationale,seed
+h_merge_intervals,5,coding,claude-cli:claude-haiku-4-5,0,True,2,0.5,1906,done,33.52,,,1726119414
+h_revenue_by_region,5,agentic,claude-cli:claude-haiku-4-5,0,True,3,0.0,1872,done,33.95,,,229533190

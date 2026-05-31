@@ -1,0 +1,5 @@
+1. call write_file({"path": "solve.py", "content": "with open('nums.txt') as f:\n    total = sum(int(line.strip()) for line in f if line.strip())\nwith open('sum.txt', 'w') as f:\n    f.write(str(total) + '\\n')\n"})
+   -> "wrote 156 chars to solve.py"
+2. call run_python({"path": "solve.py"})
+   -> {"stdout": "", "stderr": "", "returncode": 0}
+halt: done

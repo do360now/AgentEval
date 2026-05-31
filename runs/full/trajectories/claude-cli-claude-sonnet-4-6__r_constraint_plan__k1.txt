@@ -1,0 +1,5 @@
+1. call read_file({"path": "problem.txt"})
+   -> "Order four tasks A, B, C, D, one per position. Constraints: A must come before C; B must come before A; D must be last."
+2. call write_file({"path": "plan.txt", "content": "B A C D"})
+   -> "wrote 7 chars to plan.txt"
+halt: done

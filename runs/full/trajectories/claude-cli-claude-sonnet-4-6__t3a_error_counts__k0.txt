@@ -1,0 +1,11 @@
+1. call list_dir({"path": "logs/"})
+   -> ["a.log", "b.log", "c.log", "readme.txt"]
+2. call read_file({"path": "logs/a.log"})
+   -> "INFO ok\nERROR bad\nERROR worse\n"
+3. call read_file({"path": "logs/b.log"})
+   -> "INFO fine\n"
+4. call read_file({"path": "logs/c.log"})
+   -> "ERROR oops\nWARN hm\n"
+5. call write_file({"path": "errors.json", "content": "{\"a.log\": 2, \"b.log\": 0, \"c.log\": 1}"})
+   -> "wrote 36 chars to errors.json"
+halt: done
