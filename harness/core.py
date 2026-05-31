@@ -23,6 +23,7 @@ grader only sees the final environment snapshot + trajectory.
 from __future__ import annotations
 
 import json
+import random
 import shutil
 import tempfile
 import time
@@ -70,6 +71,7 @@ class Environment:
     def __init__(self, root: Path):
         self.root = root
         self.scratch: dict[str, Any] = {}  # for tasks that report via a value
+        self.seed: int = 0                  # set by make_environment for procedural tasks
 
     # -- filesystem helpers exposed to tools ------------------------------- #
     def path(self, rel: str) -> Path:
@@ -123,6 +125,10 @@ class Task:
     # If True, path quality is *also* judged by an LLM (outcome still auto).
     judge_path: bool = False
     notes: str = ""
+    # Optional: build per-instance params from a seeded RNG (procedural generation).
+    # Returns a dict stashed in env.scratch["params"] before setup runs; the grader
+    # reads it for the ground-truth answer. None => static task (params == {}).
+    parametrize: Optional[Callable[["random.Random"], dict]] = None
 
     def tool_specs(self) -> list[dict[str, Any]]:
         return [t.spec() for t in self.tools]
@@ -186,6 +192,7 @@ class RunResult:
     wall_seconds: float
     judge_score: Optional[float] = None   # 0..1, only if judge_path
     judge_rationale: str = ""
+    seed: int = 0                         # the seed this instance was generated from
 
     def to_row(self) -> dict[str, Any]:
         return self.__dict__.copy()
@@ -194,8 +201,11 @@ class RunResult:
 # --------------------------------------------------------------------------- #
 # Sandbox factory
 # --------------------------------------------------------------------------- #
-def make_environment(task: Task) -> Environment:
+def make_environment(task: Task, seed: int = 0) -> Environment:
     root = Path(tempfile.mkdtemp(prefix=f"agenteval_{task.task_id}_"))
     env = Environment(root)
+    env.seed = seed
+    rng = random.Random(seed)
+    env.scratch["params"] = task.parametrize(rng) if task.parametrize else {}
     task.setup(env)
     return env

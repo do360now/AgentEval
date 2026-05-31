@@ -1,10 +1,46 @@
 """Tests for the core data model: Environment sandbox + Trajectory metrics."""
 from __future__ import annotations
 
+import random
+
 import pytest
 
-from harness.core import Environment, Step, Trajectory, make_environment
+from harness.core import Environment, Step, Task, Trajectory, RunResult, make_environment
 from tasks.suite import T1A
+
+
+def _noop_setup(env):
+    pass
+
+def _noop_check(env, traj):
+    return True
+
+
+def test_make_environment_populates_params_from_parametrize():
+    t = Task("p_demo", 3, "reasoning", "goal", [], _noop_setup, _noop_check,
+             parametrize=lambda rng: {"n": rng.randint(0, 1_000_000)})
+    env_a = make_environment(t, seed=42)
+    env_b = make_environment(t, seed=42)
+    env_c = make_environment(t, seed=43)
+    assert env_a.scratch["params"] == env_b.scratch["params"]   # same seed -> same params
+    assert env_a.scratch["params"] != env_c.scratch["params"]   # different seed -> different
+    assert env_a.seed == 42
+    for e in (env_a, env_b, env_c):
+        e.destroy()
+
+
+def test_make_environment_static_task_has_empty_params():
+    t = Task("s_demo", 1, "retrieval", "goal", [], _noop_setup, _noop_check)
+    env = make_environment(t, seed=7)
+    assert env.scratch["params"] == {}
+    env.destroy()
+
+
+def test_runresult_has_seed_in_row():
+    r = RunResult(task_id="x", tier=1, category="c", model="m", run_index=0,
+                  success=True, n_steps=1, invalid_rate=0.0, tokens_used=10,
+                  halt_reason="done", wall_seconds=0.1, seed=12345)
+    assert r.to_row()["seed"] == 12345
 
 
 # --------------------------------------------------------------------------- #
