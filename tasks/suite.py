@@ -400,23 +400,75 @@ R_MATH = Task("r_multi_step_math", 2, "reasoning",
               max_steps=6, max_tokens=1024, parametrize=_gen_r_math)
 
 
+_LOGIC_NAMES = ["Ana", "Ben", "Cara", "Dan", "Eve", "Finn"]
+_LOGIC_PETS = ["cat", "dog", "fish", "bird", "rabbit", "hamster"]
+
+def _logic_solutions(people, pets, clues):
+    """All assignments (person->pet) consistent with the clues."""
+    out = []
+    for perm in itertools.permutations(pets, len(people)):
+        assign = dict(zip(people, perm))
+        ok = True
+        for kind, person, pet in clues:
+            if kind == "not" and assign[person] == pet:
+                ok = False
+                break
+            if kind == "is" and assign[person] != pet:
+                ok = False
+                break
+        if ok:
+            out.append(assign)
+    return out
+
+def _render_logic(people, pets, clues, queried_pet):
+    lines = [f"{len(people)} friends -- {', '.join(people)} -- each own a different pet: "
+             f"{', '.join(pets)}. Each person owns exactly one pet."]
+    for kind, person, pet in clues:
+        if kind == "not":
+            lines.append(f"{person} does not own the {pet}.")
+        else:
+            lines.append(f"{person} owns the {pet}.")
+    lines.append(f"Who owns the {queried_pet}?")
+    return "\n".join(lines)
+
+def _gen_r_logic(rng: random.Random) -> dict:
+    n = 3
+    people = rng.sample(_LOGIC_NAMES, n)
+    pets = rng.sample(_LOGIC_PETS, n)
+    sol_pets = rng.sample(pets, n)
+    solution = dict(zip(people, sol_pets))
+    candidates = [("not", p, q) for p in people for q in pets if solution[p] != q]
+    rng.shuffle(candidates)
+    clues = []
+    for c in candidates:
+        clues.append(c)
+        if len(_logic_solutions(people, pets, clues)) == 1:
+            break
+    if len(_logic_solutions(people, pets, clues)) != 1:
+        for p in people:                      # fallback: pin positives until unique
+            clues.append(("is", p, solution[p]))
+            if len(_logic_solutions(people, pets, clues)) == 1:
+                break
+    queried_pet = rng.choice(pets)
+    answer = next(p for p in people if solution[p] == queried_pet)
+    return {"people": people, "pets": pets, "clues": clues,
+            "queried_pet": queried_pet, "answer": answer,
+            "problem_text": _render_logic(people, pets, clues, queried_pet)}
+
 def _setup_r_logic(env):
-    env.write("problem.txt",
-              "Three friends -- Ana, Ben, Cara -- each own a different pet: a cat, a "
-              "dog, and a fish. Ana does not own the cat. Ben owns the fish. Who owns "
-              "the cat?")
+    env.write("problem.txt", env.scratch["params"]["problem_text"])
 
 def _check_r_logic(env, traj):
     try:
-        return env.read("answer.txt").strip() == "Cara"
+        return env.read("answer.txt").strip() == env.scratch["params"]["answer"]
     except Exception:
         return False
 
 R_LOGIC = Task("r_logic_grid", 3, "reasoning",
                "Read problem.txt, solve the logic puzzle, and write ONLY the name of "
-               "the person who owns the cat to answer.txt.",
+               "the person who owns the pet the puzzle asks about to answer.txt.",
                BASE_TOOLS, _setup_r_logic, _check_r_logic,
-               max_steps=8, max_tokens=1024, judge_path=True)
+               max_steps=8, max_tokens=1024, judge_path=True, parametrize=_gen_r_logic)
 
 
 def _setup_r_plan(env):

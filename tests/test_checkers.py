@@ -311,6 +311,28 @@ def test_r_math_check_uses_params():
     env.destroy()
 
 
+from tasks.suite import R_LOGIC, _gen_r_logic, _logic_solutions
+
+
+def test_r_logic_instances_are_unique_and_answer_correct():
+    for s in range(200):
+        p = _gen_r_logic(random.Random(s))
+        sols = _logic_solutions(p["people"], p["pets"], p["clues"])
+        assert len(sols) == 1, f"seed {s} not unique"
+        owner = next(per for per in p["people"]
+                     if sols[0][per] == p["queried_pet"])
+        assert p["answer"] == owner
+
+
+def test_r_logic_check_uses_params():
+    env = make_environment(R_LOGIC, seed=3)
+    env.write("answer.txt", env.scratch["params"]["answer"])
+    assert R_LOGIC.check(env, None) is True
+    env.write("answer.txt", "Nobody")
+    assert R_LOGIC.check(env, None) is False
+    env.destroy()
+
+
 # --------------------------------------------------------------------------- #
 # Agentic t4c + suite integrity
 # --------------------------------------------------------------------------- #
