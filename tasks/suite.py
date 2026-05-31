@@ -215,14 +215,19 @@ T3A = Task("t3a_error_counts", 3, "agentic",
            judge_path=True, parametrize=_gen_t3a)
 
 
+def _gen_t3b(rng: random.Random) -> dict:
+    n = rng.randint(4, 6)
+    vals = [rng.randint(1, 50) for _ in range(n)]
+    files = {f"nums/{i + 1}.txt": str(v) for i, v in enumerate(vals)}
+    return {"files": files, "answer": str(sum(vals))}
+
 def _setup_t3b(env):
-    for i in range(1, 6):
-        env.write(f"nums/{i}.txt", str(i * i))
+    for path, content in env.scratch["params"]["files"].items():
+        env.write(path, content)
 
 def _check_t3b(env, traj):
     try:
-        # squares 1,4,9,16,25 -> sum 55
-        return env.read("total.txt").strip() == "55"
+        return env.read("total.txt").strip() == env.scratch["params"]["answer"]
     except Exception:
         return False
 
@@ -230,7 +235,7 @@ T3B = Task("t3b_sum_files", 3, "agentic",
            "Each file in nums/ contains one integer. Read them all, sum the "
            "values, and write only the total to total.txt.",
            BASE_TOOLS, _setup_t3b, _check_t3b, max_steps=12, max_tokens=1024,
-           judge_path=True)
+           judge_path=True, parametrize=_gen_t3b)
 
 
 # --------------------------------------------------------------------------- #

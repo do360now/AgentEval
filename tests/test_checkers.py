@@ -117,6 +117,25 @@ def test_t3a_check_uses_params():
     env.destroy()
 
 
+from tasks.suite import T3B, _gen_t3b
+
+
+def test_t3b_answer_is_sum():
+    for s in range(200):
+        p = _gen_t3b(random.Random(s))
+        total = sum(int(v.strip()) for v in p["files"].values())
+        assert p["answer"] == str(total)
+
+
+def test_t3b_check_uses_params():
+    env = make_environment(T3B, seed=2)
+    env.write("total.txt", env.scratch["params"]["answer"])
+    assert T3B.check(env, None) is True
+    env.write("total.txt", "0")
+    assert T3B.check(env, None) is False
+    env.destroy()
+
+
 # --------------------------------------------------------------------------- #
 # Tier 4 — error recovery (the checker we fixed)
 # --------------------------------------------------------------------------- #
