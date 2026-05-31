@@ -10,6 +10,7 @@ returns a flat list of RunResult rows ready for aggregation.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import time
 from typing import Any, Callable, Optional
@@ -22,8 +23,10 @@ from harness.core import (Environment, RunResult, Step, Task, Trajectory,
 # One run of the agent loop
 # --------------------------------------------------------------------------- #
 def run_task(task: Task, adapter, model_name: str, run_index: int,
-             judge_adapter=None, trajectory_sink=None) -> RunResult:
-    env = make_environment(task)
+             judge_adapter=None, trajectory_sink=None, base_seed: int = 0) -> RunResult:
+    seed = int(hashlib.sha256(
+        f"{base_seed}:{task.task_id}:{run_index}".encode()).hexdigest()[:8], 16)
+    env = make_environment(task, seed)
     traj = Trajectory()
     t0 = time.time()
 
@@ -98,6 +101,7 @@ def run_task(task: Task, adapter, model_name: str, run_index: int,
         tokens_used=traj.tokens_used, halt_reason=traj.halt_reason,
         wall_seconds=round(snap_seconds, 2),
         judge_score=judge_score, judge_rationale=judge_rationale,
+        seed=seed,
     )
 
 
@@ -143,7 +147,7 @@ def judge_path_quality(task: Task, traj: Trajectory,
 def run_study(tasks: list[Task], models: dict[str, Any], k: int = 5,
               judge_adapter=None,
               progress: Optional[Callable[[str], None]] = None,
-              trajectory_sink=None) -> list[RunResult]:
+              trajectory_sink=None, base_seed: int = 0) -> list[RunResult]:
     rows: list[RunResult] = []
     for model_name, adapter in models.items():
         for task in tasks:
@@ -153,7 +157,8 @@ def run_study(tasks: list[Task], models: dict[str, Any], k: int = 5,
                 try:
                     rows.append(run_task(task, adapter, model_name, i,
                                          judge_adapter,
-                                         trajectory_sink=trajectory_sink))
+                                         trajectory_sink=trajectory_sink,
+                                         base_seed=base_seed))
                 except Exception as e:
                     # A crashed run is data too: record it as a failure.
                     rows.append(RunResult(

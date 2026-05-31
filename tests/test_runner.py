@@ -222,6 +222,23 @@ def test_run_study_progress_callback():
     assert "run 1/2" in seen[0]
 
 
+def test_run_task_records_seed_and_differs_by_run_index(scripted_adapter_factory):
+    from tasks.suite import T1B
+    from harness.runner import run_task
+    a0 = scripted_adapter_factory([("write_file", {"path": "answer.txt", "content": "1"}),
+                                   ("__final__", {})])
+    a1 = scripted_adapter_factory([("write_file", {"path": "answer.txt", "content": "1"}),
+                                   ("__final__", {})])
+    r0 = run_task(T1B, a0, "m", 0, base_seed=99)
+    r1 = run_task(T1B, a1, "m", 1, base_seed=99)
+    assert isinstance(r0.seed, int)
+    assert r0.seed != r1.seed          # different run_index -> different instance seed
+    # reproducible
+    a0b = scripted_adapter_factory([("write_file", {"path": "answer.txt", "content": "1"}),
+                                    ("__final__", {})])
+    assert run_task(T1B, a0b, "m", 0, base_seed=99).seed == r0.seed
+
+
 # --------------------------------------------------------------------------- #
 # trajectory_sink
 # --------------------------------------------------------------------------- #
