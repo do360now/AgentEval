@@ -68,7 +68,7 @@ harness/core.py      Task / Tool / Environment / Trajectory / RunResult — the 
 harness/adapters.py  Ollama / Anthropic / OpenAI / Claude-CLI, all behind one .act()
 harness/runner.py    the agent loop (run_task), study orchestration (run_study), LLM judge
 harness/report.py    aggregation -> pass@1, pass@k, per-tier/per-task, CSV + markdown
-tasks/suite.py       the task suite (16 tasks across 4 tiers; categories: retrieval/data/agentic/coding/reasoning) + shared tools
+tasks/suite.py       the task suite (16 tasks across 4 tiers; categories: retrieval/data/agentic/coding/reasoning; several tasks are procedurally generated via Task.parametrize) + shared tools
 run_eval.py          CLI: builds adapters, filters tiers, runs the matrix, writes output
 ```
 
@@ -81,7 +81,7 @@ run_eval.py          CLI: builds adapters, filters tiers, runs the matrix, write
 - **Add a task:** append a `Task` to `TASKS` in `tasks/suite.py` with a `setup(env)` that
   populates the sandbox and a `check(env, traj) -> bool` deterministic grader. Pin
   `max_steps`/`max_tokens` per tier; set `judge_path=True` only if you also want path
-  quality scored. Coding tasks use `CODE_TOOLS` (adds `run_python`) and grade by executing the model's code against held-out inputs; reasoning tasks use `BASE_TOOLS` and grade an exact answer file.
+  quality scored. Coding tasks use `CODE_TOOLS` (adds `run_python`) and grade by executing the model's code against held-out inputs; reasoning tasks use `BASE_TOOLS` and grade an exact answer file. For **procedural** tasks set `parametrize(rng)->dict`; the dict is stashed in `env.scratch['params']` before `setup` and read by both `setup` (to render `problem.txt` / input files) and `check` (for the ground-truth answer). The generator must guarantee a unique, well-formed instance and is guarded by a per-family property test over 200 seeds.
 
 ### Scoring model (the core invariant)
 
@@ -105,6 +105,10 @@ run_eval.py          CLI: builds adapters, filters tiers, runs the matrix, write
   A large gap = the model *can* do it but isn't reliable. Keep both in any reporting.
 - **Graduated tiers (1–4)** so you see *where* a model falls off. Tier 4 ("error recovery,"
   a tool deliberately fails) is the most diagnostic.
+- **Procedural generation (contamination resistance).** Seeded tasks instantiate from
+  `--seed` + task_id + run_index, so the k repeats are k *distinct* instances and pass@k =
+  'solved ≥1 of k distinct instances'. The seed is recorded per row in `results.csv` to
+  regenerate any instance.
 
 ## Things that will bite you
 
